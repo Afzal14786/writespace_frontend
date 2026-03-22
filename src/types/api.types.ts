@@ -5,8 +5,26 @@ export interface User {
   username: string;
   email: string;
   bio?: string;
-  profileImage?: string;
   headline?: string;
+  profileImageUrl?: string;
+  profileImagePublicId?: string;
+  bannerImageUrl?: string;
+  bannerImagePublicId?: string;
+  youtube?: string;
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+  github?: string;
+  website?: string;
+  linkedin?: string;
+  totalPosts?: number;
+  totalReads?: number;
+  totalFollowers?: number;
+  totalFollowing?: number;
+  status?: "active" | "suspended" | "banned";
+  role?: "user" | "admin";
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AuthResponse {
