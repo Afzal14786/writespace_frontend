@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { User, ThumbsUp, MessageSquare, Repeat, Share2, MoreHorizontal, Link as LinkIcon, Twitter, Linkedin, Facebook, X } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { toast } from "react-toastify";
-import type { Post, CommentData } from "../../types/api.types"; // FIX: CommentData imported from api.types
+import type { Post, CommentData } from "../../types/api.types";
+import { InteractionsAPI } from "../../api/interactions.api";
 
 import CodeMirror from '@uiw/react-codemirror';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
@@ -64,14 +65,6 @@ const PostComponent: React.FC<PostComponentProps> = ({ post }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const calculateReadTime = (htmlContent?: string) => {
-    if (!htmlContent) return 1;
-    const text = htmlContent.replace(/<[^>]*>?/gm, ''); 
-    const wordCount = text.split(/\s+/).length;
-    return Math.ceil(wordCount / 200) || 1; 
-  };
-  const readTime = calculateReadTime(post.content);
-
   const handleFollowToggle = () => {
     const authorName = post.author?.fullname || "this user";
     if (isFollowing) {
@@ -94,8 +87,11 @@ const PostComponent: React.FC<PostComponentProps> = ({ post }) => {
       try {
         await navigator.share({ title: "Post on Writespace", url: shareUrl });
         setSharesCount(prev => prev + 1);
-      } catch (error: any) {
-        if (error.name !== "AbortError") toast.error("Sharing failed.");
+      } catch (error) {
+        const err = error as Error;
+        if (err.name !== "AbortError") {
+          toast.error("Sharing failed.");
+        }
       }
     } else {
       setIsShareMenuOpen(!isShareMenuOpen);
@@ -178,7 +174,17 @@ const PostComponent: React.FC<PostComponentProps> = ({ post }) => {
 
   return (
     <>
-      <div style={{ backgroundColor: cardBg, borderRadius: "12px", border: `1px solid ${borderColor}`, color: textColor, padding: isMobile ? "1rem" : "1rem 1.2rem", boxShadow: isDark ? "0 4px 6px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.05)", fontFamily: "Inter, sans-serif" }}>
+      <div style={{ 
+        backgroundColor: cardBg, 
+        borderRadius: "12px", 
+        border: `1px solid ${borderColor}`, 
+        color: textColor, 
+        padding: isMobile ? "1rem" : "1rem 1.2rem", 
+        boxShadow: isDark ? "0 4px 6px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.05)", 
+        fontFamily: "Inter, sans-serif",
+        marginTop: 0,
+        marginBottom: 0 
+      }}>
         
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
           <div style={{ display: "flex", gap: "12px", minWidth: 0, flex: 1 }}>
@@ -188,13 +194,13 @@ const PostComponent: React.FC<PostComponentProps> = ({ post }) => {
             
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
               <span style={{ fontWeight: 600, fontSize: "1rem", color: textColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {post.author?.fullname || "Unknown User"} <span style={{ fontSize: "0.85rem", color: mutedText, fontWeight: 400 }}>• 1st</span>
+                {post.author?.fullname || "Unknown User"}
               </span>
               <span style={{ fontSize: "0.8rem", color: mutedText, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
                 {post.author?.headline || "Member"}
               </span>
               <span style={{ fontSize: "0.75rem", color: mutedText, marginTop: "2px" }}>
-                {new Date(post.createdAt).toLocaleDateString()} • {readTime} min read
+                {new Date(post.createdAt).toLocaleDateString()}
               </span>
             </div>
           </div>

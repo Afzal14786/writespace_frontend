@@ -42,12 +42,10 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, postAuthorId })
   const fetchComments = useCallback(async () => {
     try {
       setIsLoading(true);
-      
       const response = await InteractionsAPI.getComments(postId); 
       setComments(response || []);
     } catch (error) {
       console.error("Failed to fetch comments", error);
-      // toast.error("Could not load comments");
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +61,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, postAuthorId })
     setIsSubmitting(true);
     try {
       const response = await InteractionsAPI.addComment(postId, commentText);
-      // Assuming response returns the new comment object
       setComments([response, ...comments]);
       setCommentText("");
       toast.success("Comment posted");
@@ -80,7 +77,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, postAuthorId })
     if (!replyText.trim() || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      // Backend Alignment: Pass parentId to create a nested relation
       const response = await InteractionsAPI.addComment(postId, replyText, parentId);
       
       const addReplyToTree = (list: CommentData[]): CommentData[] => {
@@ -100,7 +96,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, postAuthorId })
       setReplyingTo(null);
       toast.success("Reply posted");
     } catch (error) {
-      console.log(error);
+      console.log(error)
       toast.error("Failed to post reply");
     } finally {
       setIsSubmitting(false);
@@ -110,38 +106,82 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, postAuthorId })
   // 4. Toggle Like on Comment
   const handleCommentLike = async (commentId: string) => {
     try {
-      // await InteractionsAPI.toggleCommentLike(commentId);
-      setComments(prev => prev.map(c => {
-        if (c.id === commentId) {
-          const isLiked = c.isLikedByMe;
-          return { ...c, likes: isLiked ? c.likes - 1 : c.likes + 1, isLikedByMe: !isLiked };
-        }
-        return c;
-      }));
+      // Optimistic update locally
+      setComments(prev => {
+        const toggleLikeInTree = (list: CommentData[]): CommentData[] => {
+          return list.map(c => {
+            if (c.id === commentId) {
+              const isLiked = c.isLikedByMe;
+              return { ...c, likes: isLiked ? c.likes - 1 : c.likes + 1, isLikedByMe: !isLiked };
+            }
+            if (c.replies) {
+              return { ...c, replies: toggleLikeInTree(c.replies) };
+            }
+            return c;
+          });
+        };
+        return toggleLikeInTree(prev);
+      });
+      
+      // await InteractionsAPI.toggleLike(commentId);
     } catch (error) {
       console.log(error);
       toast.error("Action failed");
     }
   };
 
-  const renderComment = (comment: CommentData, depth = 0) => {
-    const visualDepth = isMobile ? Math.min(depth, 1) : depth;
-    const marginLeft = visualDepth * (isMobile ? 12 : 24);
+  // Recursive Comment Renderer
+  const renderComment = (comment: CommentData, depth = 0, isLastChild = false) => {
+    // Prevent infinite nesting visual squish on mobile
+    const maxDepth = isMobile ? 1 : 2;
+    const isIndented = depth > 0;
+    
+    // The margin size determines how far right the child goes
+    const indentSize = isIndented ? (isMobile ? 32 : 44) : 0;
+    
     const isAuthor = comment.authorId === postAuthorId;
 
     return (
-      <div key={comment.id} style={{ marginTop: "16px", marginLeft: `${marginLeft}px`, position: "relative" }}>
-        {depth > 0 && (
+      <div key={comment.id} style={{ 
+        marginTop: depth === 0 ? "16px" : "12px", 
+        marginLeft: `${Math.min(depth, maxDepth) * indentSize}px`, 
+        position: "relative" 
+      }}>
+        
+        {/* YouTube / Reddit Style "L" Shaped Connection Line */}
+        {isIndented && (
           <div style={{ 
-            position: "absolute", left: isMobile ? "-10px" : "-20px", 
-            top: "-16px", bottom: "20px", width: "2px", 
-            backgroundColor: borderColor, borderRadius: "1px"
-          }} />
+            position: "absolute", 
+            left: `${-indentSize + 16}px`, // Align to parent avatar center
+            top: "-12px", 
+            bottom: isLastChild ? "calc(100% - 24px)" : "-10px", // Stop at this avatar if it's the last reply, else continue down
+            width: "2px", 
+            backgroundColor: borderColor,
+          }}>
+            {/* The horizontal curve to the current avatar */}
+            <div style={{
+              position: "absolute",
+              top: "24px",
+              left: "2px",
+              width: `${indentSize - 18}px`,
+              height: "2px",
+              backgroundColor: borderColor,
+              borderBottomLeftRadius: "8px"
+            }} />
+          </div>
         )}
         
         <div style={{ display: "flex", gap: "10px" }}>
-          <div style={{ width: "32px", height: "32px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
-            <User size={16} color={mutedText} />
+          
+          <div style={{ 
+            width: depth === 0 ? "32px" : "26px", // Slightly smaller avatar for replies
+            height: depth === 0 ? "32px" : "26px", 
+            borderRadius: "50%", 
+            backgroundColor: isDark ? "#334155" : "#e2e8f0", 
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden",
+            zIndex: 2 // Keep avatar above lines
+          }}>
+            <User size={depth === 0 ? 16 : 14} color={mutedText} />
           </div>
           
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -168,24 +208,35 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, postAuthorId })
                 Like {comment.likes > 0 && `(${comment.likes})`}
               </button>
               <span style={{ color: borderColor }}>|</span>
-              <button onClick={() => { setReplyingTo(replyingTo === comment.id ? null : comment.id); setReplyText(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: mutedText, padding: 0 }}>Reply</button>
+              <button onClick={() => { setReplyingTo(replyingTo === comment.id ? null : comment.id); setReplyText(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: mutedText, padding: 0 }}>
+                Reply
+              </button>
             </div>
 
+            {/* Inline Reply Input */}
             {replyingTo === comment.id && (
               <div style={{ display: "flex", gap: "8px", marginTop: "12px", alignItems: "center" }}>
+                <div style={{ width: "24px", height: "24px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <User size={12} color={mutedText} />
+                </div>
                 <input 
-                  autoFocus placeholder="Write a reply..." value={replyText} 
+                  autoFocus placeholder="Reply..." value={replyText} 
                   onChange={(e) => setReplyText(e.target.value)}
                   onKeyDown={(e) => { if(e.key === 'Enter') handleAddReply(comment.id); }}
-                  style={{ flex: 1, backgroundColor: inputBg, border: `1px solid ${borderColor}`, color: textColor, padding: "8px 16px", borderRadius: "20px", outline: "none", fontSize: "0.8rem" }}
+                  style={{ flex: 1, minWidth: 0, backgroundColor: inputBg, border: `1px solid ${borderColor}`, color: textColor, padding: "6px 12px", borderRadius: "20px", outline: "none", fontSize: "0.8rem" }}
                 />
                 <button onClick={() => handleAddReply(comment.id)} disabled={!replyText.trim() || isSubmitting} style={{ background: "none", border: "none", color: accentColor, cursor: "pointer", opacity: replyText.trim() ? 1 : 0.5 }}>
-                  {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 </button>
               </div>
             )}
             
-            {comment.replies && comment.replies.map(reply => renderComment(reply, depth + 1))}
+            {/* Recursive Call for nested replies */}
+            {comment.replies && comment.replies.length > 0 && (
+              <div style={{ marginTop: "8px" }}>
+                {comment.replies.map((reply, idx) => renderComment(reply, depth + 1, idx === comment.replies!.length - 1))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -194,7 +245,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, postAuthorId })
 
   return (
     <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: `1px solid ${borderColor}` }}>
-      {/* Main Comment Input */}
+      
+      {/* Main Top-Level Comment Input */}
       <div style={{ display: "flex", gap: "10px" }}>
         <div style={{ width: "36px", height: "36px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <User size={18} color={mutedText} />
@@ -218,7 +270,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, postAuthorId })
             <Loader2 size={24} className="animate-spin" color={accentColor} />
           </div>
         ) : (
-          comments.map(comment => renderComment(comment, 0))
+          comments.map((comment, idx) => renderComment(comment, 0, idx === comments.length - 1))
         )}
       </div>
     </div>
