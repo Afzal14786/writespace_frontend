@@ -25,7 +25,21 @@ export interface UpdateProfilePayload {
   };
 }
 
+export interface UsernameCheckResponse {
+  available: boolean;
+  suggestions?: string[];
+}
+
 export const UsersAPI = {
+  checkUsername: async (username: string): Promise<UsernameCheckResponse> => {
+    // Note: ensure your backend route is exactly /users/check-username
+    const response = await api.get<BackendResponse<UsernameCheckResponse>>(
+      `/users/check-username`, 
+      { params: { username } }
+    );
+    return response.data.data;
+  },
+  
   getMe: async (): Promise<User> => {
     const userDataStr = localStorage.getItem("userData");
     if (!userDataStr) {

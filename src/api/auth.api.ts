@@ -15,9 +15,8 @@ interface BackendResponse<T> {
 }
 
 export const AuthAPI = {
-  register: async (data: RegisterPayload): Promise<AuthResponse> => {
-    const response = await api.post<BackendResponse<AuthResponse>>("/auth/register", data);
-    return response.data.data;
+  register: async (data: RegisterPayload): Promise<void> => {
+    await api.post<BackendResponse<null>>("/auth/register", data);
   },
 
   login: async (data: LoginPayload): Promise<AuthResponse> => {
@@ -26,7 +25,7 @@ export const AuthAPI = {
   },
 
   verifyOtp: async (data: VerifyOtpPayload): Promise<AuthResponse> => {
-    const response = await api.post<BackendResponse<AuthResponse>>("/auth/verify-otp", data);
+    const response = await api.post<BackendResponse<AuthResponse>>("/auth/verify-email", data);
     return response.data.data;
   },
 
