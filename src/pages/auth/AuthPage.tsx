@@ -77,7 +77,7 @@ const AuthPage: React.FC = () => {
   };
 
   const handleOAuth = (provider: "google" | "github") => {
-    window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"}/auth/${provider}`;
+    window.location.href = `${import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1"}/auth/${provider}`;
   };
 
   const togglePasswordVisibility = () => {
