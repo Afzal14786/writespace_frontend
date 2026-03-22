@@ -2,11 +2,11 @@ import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginComponent from "./components/auth/LoginComponent";
 import RegisterComponent from "./components/auth/RegisterComponent";
+import Profile from "./components/users/Profile";
 import MainLayout from "./components/layout/MainLayout";
 import HomePage from "./pages/home/HomePage";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
 
-// --- React Toastify Imports ---
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -30,6 +30,7 @@ const AppContent = () => {
 
           <Route element={<MainLayout />}>
             <Route path="/home" element={<HomePage />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/messages" element={<div style={{ padding: "2rem" }}>Messages</div>} />
             <Route path="/notifications" element={<div style={{ padding: "2rem" }}>Notifications</div>} />
           </Route>
