@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-// Notice we import 'User as UserIcon' here to avoid the naming collision!
-import { MapPin, Calendar, Link as LinkIcon, Edit3, UserPlus, MessageSquare, FileText, Code, Image as ImageIcon, X, Twitter, Linkedin, Github, Globe, Loader2, User as UserIcon } from "lucide-react";
+import { MapPin, Calendar, Edit3, UserPlus, MessageSquare, FileText, Code, Image as ImageIcon, X, Twitter, Linkedin, Github, Globe, Loader2, User as UserIcon } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext"; // FIX 1: Imported useAuth
 import { toast } from "react-toastify";
 
 import PostComponent from "../home/PostComponent";
@@ -21,14 +21,26 @@ interface ExtendedUser extends User {
   totalFollowing?: number;
 }
 
+// FIX 2: Strict type for Catch block errors
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+}
+
 const Profile: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
+  
+  // FIX 3: Actually grab the authUser and loginState from Context
+  const { user: authUser, loginState } = useAuth();
 
   // --- Responsiveness ---
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [windowWidth, setWindowWidth] = useState<number>(window.innerWidth);
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
@@ -37,7 +49,6 @@ const Profile: React.FC = () => {
   const isMobile = windowWidth < 768;
 
   // --- State Management ---
-  const [currentUser, setCurrentUser] = useState<ExtendedUser | null>(null);
   const [profileUser, setProfileUser] = useState<ExtendedUser | null>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -57,20 +68,17 @@ const Profile: React.FC = () => {
     let isMounted = true;
     
     const fetchProfileData = async () => {
+      // Must wait until auth is verified before making requests
+      if (!authUser) return;
+
       try {
         setIsLoading(true);
         
-        // 1. Get Logged in User 
-        const me = await UsersAPI.getMe() as ExtendedUser;
-        if (isMounted) setCurrentUser(me);
-
-        // 2. Determine target profile
-        const targetUsername = username || me.username;
+        const targetUsername = username || authUser.username;
         const profileData = await UsersAPI.getProfileByUsername(targetUsername) as ExtendedUser;
         
         if (isMounted) {
           setProfileUser(profileData);
-          
           setEditForm({
             fullname: profileData.fullname || "",
             headline: profileData.headline || "",
@@ -82,15 +90,20 @@ const Profile: React.FC = () => {
           });
         }
 
-        // 3. Fetch Posts associated with this user
-        const feed = await PostsAPI.getFeed("recent", 1);
-        const filteredPosts = feed.filter((p: Post) => p.author.username === targetUsername);
-        if (isMounted) setUserPosts(filteredPosts);
+        const feedResponse = await PostsAPI.getFeed("recent", 1);
+        
+        if (feedResponse && feedResponse.posts) {
+          const filteredPosts = feedResponse.posts.filter((p: Post) => p.author.username === targetUsername);
+          if (isMounted) setUserPosts(filteredPosts);
+        } else {
+          if (isMounted) setUserPosts([]);
+        }
 
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Profile Fetch Error:", error);
         if (isMounted) {
-          toast.error("Failed to load profile. Ensure you are logged in.");
+          const err = error as ApiErrorResponse;
+          toast.error(err.response?.data?.message || "Failed to load profile data.");
           navigate("/home");
         }
       } finally {
@@ -100,12 +113,10 @@ const Profile: React.FC = () => {
 
     fetchProfileData();
     
-    return () => {
-      isMounted = false;
-    };
-  }, [username, navigate]);
+    return () => { isMounted = false; };
+  }, [username, authUser, navigate]);
 
-  const isOwnProfile = currentUser?.id === profileUser?.id;
+  const isOwnProfile = authUser?.id === profileUser?.id;
 
   // --- Handlers ---
   const handleSaveProfile = async () => {
@@ -129,6 +140,12 @@ const Profile: React.FC = () => {
     try {
       const updatedUser = await UsersAPI.updateProfile(profileUser.id, payload) as ExtendedUser;
       setProfileUser(updatedUser); 
+      
+      // Update global context so header updates instantly
+      const token = localStorage.getItem("accessToken") || "";
+      const refresh = localStorage.getItem("refreshToken") || "";
+      loginState(updatedUser, token, refresh);
+
       setIsEditModalOpen(false);
       toast.success("Profile updated successfully!");
     } catch (error) {
@@ -198,7 +215,6 @@ const Profile: React.FC = () => {
               {profileUser.profileImageUrl ? (
                 <img src={profileUser.profileImageUrl} alt={profileUser.fullname} style={{ width: "100%", height: "100%", objectFit: "cover" }}/> 
               ) : (
-                // WE NOW USE <UserIcon /> INSTEAD OF <User />
                 <UserIcon size={60} color={mutedText} style={{ margin: "auto", marginTop: isMobile ? "16px" : "36px" }} />
               )}
             </div>

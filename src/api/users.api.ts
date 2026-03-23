@@ -1,7 +1,7 @@
 import api from "./api.index";
 import type { User } from "../types/api.types";
 
-interface BackendResponse<T> {
+export interface BackendResponse<T> {
   success: boolean;
   message: string;
   data: T;
@@ -32,7 +32,6 @@ export interface UsernameCheckResponse {
 
 export const UsersAPI = {
   checkUsername: async (username: string): Promise<UsernameCheckResponse> => {
-    // Note: ensure your backend route is exactly /users/check-username
     const response = await api.get<BackendResponse<UsernameCheckResponse>>(
       `/users/check-username`, 
       { params: { username } }
@@ -41,19 +40,12 @@ export const UsersAPI = {
   },
   
   getMe: async (): Promise<User> => {
-    const userDataStr = localStorage.getItem("userData");
-    if (!userDataStr) {
-      throw new Error("User not authenticated");
-    }
-    
-    // Parse stored data to get the username, then fetch fresh data
-    const sessionData = JSON.parse(userDataStr) as User;
-    const response = await api.get<BackendResponse<User>>(`/users/${sessionData.username}`);
+    const response = await api.get<BackendResponse<User>>(`/users/me`);
     return response.data.data; 
   },
 
   getProfileByUsername: async (username: string): Promise<User> => {
-    const response = await api.get<BackendResponse<User>>(`/users/${username}`);
+    const response = await api.get<BackendResponse<User>>(`/users/profile/${username}`);
     return response.data.data;
   },
 

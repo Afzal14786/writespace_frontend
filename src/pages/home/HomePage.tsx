@@ -10,45 +10,46 @@ import PostComponent from "../../components/home/PostComponent";
 import type { Post } from "../../types/api.types";
 import { PostsAPI } from "../../api/posts.api"; 
 
-// Import Dummy Data
 import { MOCK_POSTS } from "../../data/mockPosts";
+
+// FIX: Strictly type the sorting options
+type SortOption = "Recent" | "Top" | "Discussed";
+const SORT_OPTIONS: SortOption[] = ["Recent", "Top", "Discussed"];
 
 const HomePage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const [sortBy, setSortBy] = useState<"Recent" | "Top" | "Discussed">("Recent");
-  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [windowWidth, setWindowWidth] = useState<number>(window.innerWidth);
+  const [sortBy, setSortBy] = useState<SortOption>("Recent");
+  const [isSortOpen, setIsSortOpen] = useState<boolean>(false);
   
-  // Real State for API
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Prevents React 18 StrictMode from firing the error toast twice
-  const toastTriggered = useRef(false);
+  const toastTriggered = useRef<boolean>(false);
 
-  // Resize handler
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Fetch Feed Data from API
   useEffect(() => {
     let isMounted = true;
-    toastTriggered.current = false; // Reset flag on re-fetch
+    toastTriggered.current = false;
 
     const fetchFeed = async () => {
       try {
         setIsLoading(true);
-        const fetchedPosts = await PostsAPI.getFeed(sortBy.toLowerCase(), 1);
-        if (isMounted) setPosts(fetchedPosts);
+        const feedResponse = await PostsAPI.getFeed(sortBy.toLowerCase(), 1);
+        
+        if (isMounted) {
+          setPosts(feedResponse.posts || []);
+        }
       } catch (error) {
         if (isMounted) {
           console.error("Error fetching feed, falling back to mock data:", error);
-          // Fallback to Mock Data so the UI isn't empty while testing
           setPosts(MOCK_POSTS);
           
           if (!toastTriggered.current) {
@@ -66,7 +67,7 @@ const HomePage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [sortBy]); 
+  }, [sortBy]);
 
   const isMobile = windowWidth < 768;
   const isTablet = windowWidth < 1024;
@@ -119,9 +120,11 @@ const HomePage: React.FC = () => {
               
               {isSortOpen && (
                 <div style={{ position: "absolute", top: "100%", right: 0, marginTop: "8px", width: "140px", backgroundColor: cardBg, border: `1px solid ${borderColor}`, borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", zIndex: 10, overflow: "hidden" }}>
-                  {["Recent", "Top", "Discussed"].map((option) => (
+                  {/* FIX: Now maps over strictly typed SORT_OPTIONS instead of raw strings */}
+                  {SORT_OPTIONS.map((option) => (
                     <div 
-                      key={option} onClick={() => { setSortBy(option as any); setIsSortOpen(false); }}
+                      key={option} 
+                      onClick={() => { setSortBy(option); setIsSortOpen(false); }}
                       style={{ padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", color: textColor, fontWeight: sortBy === option ? 600 : 400, borderBottom: `1px solid ${borderColor}`, cursor: "pointer" }}
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)"}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = "transparent"}

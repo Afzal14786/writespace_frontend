@@ -1,5 +1,8 @@
+import React from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Loader2 } from "lucide-react"; // Added for smooth loading UX
+
 import AuthPage from "./pages/auth/AuthPage";
 import Profile from "./components/users/Profile";
 import ProtectedLayout from "./components/layout/ProtectedLayout";
@@ -11,18 +14,22 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 // Helper component to redirect authenticated users away from the login page
-const PublicRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoadingAuth } = useAuth();
   
-  if (isLoading) {
-    return null; // Awaiting initial auth check
+  if (isLoadingAuth) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", backgroundColor: "#0f172a" }}>
+        <Loader2 size={40} color="#6366f1" className="animate-spin" />
+      </div>
+    );
   }
   
   return isAuthenticated ? <Navigate to="/home" replace /> : <>{children}</>;
 };
 
 // Create a wrapper component to access the theme context for the toasts and routes
-const AppContent = () => {
+const AppContent: React.FC = () => {
   const { theme } = useTheme();
   
   return (
@@ -59,7 +66,7 @@ const AppContent = () => {
   );
 };
 
-const App = () => {
+const App: React.FC = () => {
   return (
     <ThemeProvider>
       <BrowserRouter>

@@ -1,27 +1,31 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Search, Home, MessageSquare, Bell, User, Sun, Moon, Menu, X, ArrowLeft, ChevronDown } from "lucide-react";
+import { Search, Home, MessageSquare, Bell, User as UserIcon, Sun, Moon, Menu, X, ArrowLeft, ChevronDown } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 
-const Header = () => {
+const Header: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
+  
+  // 1. Grab the global user state and logout function from AuthContext
+  const { user, logoutState } = useAuth();
+  
   const isDark = theme === "dark";
 
   // --- State ---
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [windowWidth, setWindowWidth] = useState<number>(window.innerWidth);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState<boolean>(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState<boolean>(false);
   
   const profileMenuRef = useRef<HTMLDivElement>(null);
   
-  // Dummy profile data (Replace with context/auth data later)
-  const profileImageUrl = ""; 
-  const userName = "Afzal";
-  const userHeadline = "Aspiring AI Engineer | MERN Stack Specialist";
+  const profileImageUrl = user?.profileImageUrl || ""; 
+  const userName = user?.fullname || "User";
+  const userHeadline = user?.headline || "Add a headline in your profile";
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -47,7 +51,7 @@ const Header = () => {
   const textColor = isDark ? "#f1f5f9" : "#0f172a";
   const iconColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(15,23,42,0.6)";
   const mutedText = isDark ? "#94a3b8" : "#64748b";
-  const accentColor = isDark ? "#818cf8" : "#0a66c2"; // LinkedIn Blue
+  const accentColor = isDark ? "#818cf8" : "#0a66c2"; 
   const borderColor = isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)";
 
   const macGlassStyle: React.CSSProperties = {
@@ -74,16 +78,14 @@ const Header = () => {
     };
   };
 
+  // 3. Updated handleLogout to use Context's clear state method
   const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("userData");
+    logoutState(); // This clears local storage and sets user to null globally
     setIsProfileMenuOpen(false);
     toast.success("Signed out successfully");
     navigate("/login");
   };
 
-  // Shared hover logic for dropdown links
   const handleLinkHover = (e: React.MouseEvent<HTMLElement>) => {
     e.currentTarget.style.textDecoration = "underline";
   };
@@ -91,7 +93,6 @@ const Header = () => {
     e.currentTarget.style.textDecoration = "none";
   };
 
-  // --- Mobile Search View ---
   if (isMobile && isMobileSearchOpen) {
     return (
       <header style={macGlassStyle}>
@@ -155,14 +156,13 @@ const Header = () => {
             {isDark ? <Sun size={22} /> : <Moon size={22} />}<span>{isDark ? "Light" : "Dark"}</span>
           </button>
           
-          {/* Profile Dropdown Container */}
           <div ref={profileMenuRef} style={{ position: "relative" }}>
             <button 
               onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
               style={{ ...getNavItemStyle("/profile"), marginLeft: "0.5rem", background: "none", border: "none" }}
             >
               <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: isDark ? "#334155" : "#e2e8f0", border: isDark ? "2px solid rgba(255,255,255,0.2)" : "2px solid rgba(0,0,0,0.1)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                {profileImageUrl ? <img src={profileImageUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={14} color={iconColor} />}
+                {profileImageUrl ? <img src={profileImageUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <UserIcon size={14} color={iconColor} />}
               </div>
               <div style={{ display: "flex", alignItems: "center" }}>
                 <span>Me</span>
@@ -170,15 +170,13 @@ const Header = () => {
               </div>
             </button>
 
-            {/* Profile Dropdown Menu (LinkedIn Style) */}
             {isProfileMenuOpen && (
               <div style={{ position: "absolute", top: "120%", right: 0, width: "272px", backgroundColor: isDark ? "#1e293b" : "#ffffff", border: `1px solid ${borderColor}`, borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", overflow: "hidden", display: "flex", flexDirection: "column", animation: "fadeIn 0.2s", fontFamily: "Inter, sans-serif" }}>
                 
-                {/* 1. Profile Preview & View Profile Button */}
                 <div style={{ padding: "16px 16px 8px 16px", borderBottom: `1px solid ${borderColor}` }}>
                   <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "12px" }}>
                     <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-                      {profileImageUrl ? <img src={profileImageUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={32} color={mutedText} />}
+                      {profileImageUrl ? <img src={profileImageUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <UserIcon size={32} color={mutedText} />}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", minWidth: 0, paddingTop: "2px" }}>
                       <span style={{ fontWeight: 600, fontSize: "1rem", color: textColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "1.2" }}>{userName}</span>
@@ -196,21 +194,13 @@ const Header = () => {
                   </Link>
                 </div>
 
-                {/* 2. Account Section */}
                 <div style={{ padding: "12px 0", borderBottom: `1px solid ${borderColor}` }}>
                   <h4 style={{ margin: "0 16px 8px 16px", fontSize: "0.9rem", fontWeight: 600, color: textColor }}>Account</h4>
                   <Link to="/settings" onClick={() => setIsProfileMenuOpen(false)} style={{ display: "block", padding: "4px 16px", color: mutedText, fontSize: "0.85rem", textDecoration: "none" }} onMouseOver={handleLinkHover} onMouseOut={handleLinkLeave}>
                     Settings & Privacy
                   </Link>
-                  <Link to="/help" onClick={() => setIsProfileMenuOpen(false)} style={{ display: "block", padding: "4px 16px", color: mutedText, fontSize: "0.85rem", textDecoration: "none" }} onMouseOver={handleLinkHover} onMouseOut={handleLinkLeave}>
-                    Help
-                  </Link>
-                  <Link to="/language" onClick={() => setIsProfileMenuOpen(false)} style={{ display: "block", padding: "4px 16px", color: mutedText, fontSize: "0.85rem", textDecoration: "none" }} onMouseOver={handleLinkHover} onMouseOut={handleLinkLeave}>
-                    Language
-                  </Link>
                 </div>
 
-                {/* 3. Manage Section */}
                 <div style={{ padding: "12px 0", borderBottom: `1px solid ${borderColor}` }}>
                   <h4 style={{ margin: "0 16px 8px 16px", fontSize: "0.9rem", fontWeight: 600, color: textColor }}>Manage</h4>
                   <Link to="/profile/posts" onClick={() => setIsProfileMenuOpen(false)} style={{ display: "block", padding: "4px 16px", color: mutedText, fontSize: "0.85rem", textDecoration: "none" }} onMouseOver={handleLinkHover} onMouseOut={handleLinkLeave}>
@@ -218,7 +208,6 @@ const Header = () => {
                   </Link>
                 </div>
 
-                {/* 4. Sign Out */}
                 <div style={{ padding: "8px 0" }}>
                   <button 
                     onClick={handleLogout} 
@@ -235,14 +224,12 @@ const Header = () => {
         </nav>
       )}
 
-      {/* Mobile Slide-out Menu */}
       {isMobile && isMobileMenuOpen && (
         <div style={{ position: "absolute", top: "64px", left: 0, right: 0, backgroundColor: isDark ? "#0f172a" : "#ffffff", borderBottom: `1px solid ${borderColor}`, padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" }}>
            
-           {/* Mobile Profile Preview Header */}
            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", paddingBottom: "16px", borderBottom: `1px solid ${borderColor}` }}>
              <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-               {profileImageUrl ? <img src={profileImageUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={28} color={mutedText} />}
+               {profileImageUrl ? <img src={profileImageUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <UserIcon size={28} color={mutedText} />}
              </div>
              <div style={{ display: "flex", flexDirection: "column", minWidth: 0, paddingTop: "2px", flex: 1 }}>
                <span style={{ fontWeight: 600, fontSize: "1rem", color: textColor, lineHeight: 1.2 }}>{userName}</span>
@@ -261,13 +248,7 @@ const Header = () => {
            
            <h4 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 600, color: textColor }}>Account</h4>
            <Link to="/settings" onClick={() => setIsMobileMenuOpen(false)} style={{ color: mutedText, fontSize: "0.9rem", textDecoration: "none" }}>Settings & Privacy</Link>
-           <Link to="/help" onClick={() => setIsMobileMenuOpen(false)} style={{ color: mutedText, fontSize: "0.9rem", textDecoration: "none" }}>Help</Link>
            
-           <div style={{ borderTop: `1px solid ${borderColor}`, margin: "0.5rem 0" }} />
-           
-           <h4 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 600, color: textColor }}>Manage</h4>
-           <Link to="/profile/posts" onClick={() => setIsMobileMenuOpen(false)} style={{ color: mutedText, fontSize: "0.9rem", textDecoration: "none" }}>Posts & Activity</Link>
-
            <div style={{ borderTop: `1px solid ${borderColor}`, paddingTop: "1rem", marginTop: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
              <button onClick={() => { toggleTheme(); setIsMobileMenuOpen(false); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", color: textColor, fontSize: "0.9rem", fontWeight: "500", padding: 0 }}>
                {isDark ? <Sun size={18} /> : <Moon size={18} />}<span>Theme</span>

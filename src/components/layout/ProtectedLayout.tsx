@@ -1,16 +1,26 @@
 import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext"; // Added theme context
 import { Loader2 } from "lucide-react";
-import Header from "./Header"; // Your updated Header
+import Header from "./Header";
 
 const ProtectedLayout: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { theme } = useTheme(); // Consume the current theme
 
-  if (isLoading) {
+  const isDark = theme === "dark";
+  const bgColor = isDark ? "#0f172a" : "#f8fafc";
+  const textColor = isDark ? "#f1f5f9" : "#0f172a";
+
+  if (isLoadingAuth) {
     return (
-      <div style={{ height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", backgroundColor: "#0f172a" }}>
-        <Loader2 size={48} className="animate-spin text-indigo-500" />
+      <div style={{ 
+        display: "flex", justifyContent: "center", alignItems: "center", 
+        height: "100vh", backgroundColor: bgColor, color: textColor,
+        transition: "background-color 0.3s ease, color 0.3s ease" // Smooth transition
+      }}>
+        <Loader2 size={40} color="#6366f1" className="animate-spin" />
       </div>
     );
   }
@@ -20,10 +30,16 @@ const ProtectedLayout: React.FC = () => {
   }
 
   return (
-    <>
+    <div style={{ 
+      display: "flex", flexDirection: "column", minHeight: "100vh", 
+      backgroundColor: bgColor, color: textColor,
+      transition: "background-color 0.3s ease, color 0.3s ease" // Smooth transition
+    }}>
       <Header />
-      <Outlet /> {/* Renders the protected page (e.g., HomePage, Profile) */}
-    </>
+      <main style={{ flex: 1, paddingTop: "64px", display: "flex", flexDirection: "column" }}> 
+        <Outlet />
+      </main>
+    </div>
   );
 };
 
