@@ -13,6 +13,7 @@ export interface UpdateProfilePayload {
     fullname?: string;
     bio?: string;
     headline?: string;
+    location?: string;
   };
   social_links?: {
     twitter?: string;
@@ -23,6 +24,8 @@ export interface UpdateProfilePayload {
     instagram?: string;
     facebook?: string;
   };
+  profileImage?: File;
+  bannerImage?: File;
 }
 
 export interface UsernameCheckResponse {
@@ -50,7 +53,24 @@ export const UsersAPI = {
   },
 
   updateProfile: async (userId: string, payload: UpdateProfilePayload): Promise<User> => {
-    const response = await api.put<BackendResponse<User>>(`/users/${userId}`, payload);
+    const formData = new FormData();
+    
+    if (payload.personal_info) {
+      formData.append("personal_info", JSON.stringify(payload.personal_info));
+    }
+    if (payload.social_links) {
+      formData.append("social_links", JSON.stringify(payload.social_links));
+    }
+    if (payload.profileImage) {
+      formData.append("profileImage", payload.profileImage);
+    }
+    if (payload.bannerImage) {
+      formData.append("bannerImage", payload.bannerImage);
+    }
+
+    const response = await api.put<BackendResponse<User>>(`/users/${userId}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return response.data.data;
   },
 

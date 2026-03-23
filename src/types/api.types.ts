@@ -6,6 +6,7 @@ export interface User {
   email: string;
   bio?: string;
   headline?: string;
+  location?: string;
   profileImageUrl?: string;
   profileImagePublicId?: string;
   bannerImageUrl?: string;
@@ -63,18 +64,22 @@ export interface CodeSnippet {
 export interface Post {
   id: string;
   userId: string;
-  content?: string; // HTML string from Tiptap
-  media?: string[]; // Renamed from images
+  title?: string;
+  content?: string;
+  media?: string[];
   codeSnippets?: CodeSnippet[];
   likesCount: number;
   commentsCount: number;
+  readTime?: number;
   createdAt: string;
   author: User;
+  isLiked?: boolean;
+  isLikedByMe?: boolean;
 }
 
 export interface CreatePostPayload {
-  title?: string;
-  content?: string;
+  title: string;
+  content: string;
   images?: File[]; 
   codeSnippets?: Omit<CodeSnippet, 'id'>[];
 }
