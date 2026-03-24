@@ -40,6 +40,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("userData");
+      localStorage.removeItem("user");
+      localStorage.removeItem("feedCache");
       setAccessToken(null);
       setUser(null);
       navigate("/login", { replace: true });

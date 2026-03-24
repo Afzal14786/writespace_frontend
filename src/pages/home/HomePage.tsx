@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ChevronDown, Check, Loader2 } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { toast } from "react-toastify";
@@ -23,9 +23,7 @@ const HomePage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>("Recent");
   const [isSortOpen, setIsSortOpen] = useState<boolean>(false);
   
-  // BIG TECH UPGRADE 1: Instant UI Rendering
-  // We initialize the state directly from localStorage so the browser can paint
-  // the feed in 0 milliseconds before any network requests are even made.
+  // 1. SWR Instant Load: Initialize state directly from localStorage
   const [posts, setPosts] = useState<Post[]>(() => {
     try {
       const cachedPosts = localStorage.getItem("feedCache");
@@ -35,9 +33,35 @@ const HomePage: React.FC = () => {
     }
   });
 
-  // BIG TECH UPGRADE 2: Smart Loading State
-  // We only show the loading spinner if the cache is completely empty.
   const [isLoading, setIsLoading] = useState<boolean>(posts.length === 0);
+
+  // ==========================================
+  // 2. INFINITE SCROLL: Cursor State Management
+  // ==========================================
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [isFetchingMore, setIsFetchingMore] = useState<boolean>(false);
+
+  // Intersection Observer Setup
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastPostElementRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (isLoading || isFetchingMore) return;
+      
+      if (observer.current) observer.current.disconnect();
+
+      observer.current = new IntersectionObserver((entries) => {
+        // If bottom div intersects and we have a nextCursor, trigger fetch!
+        if (entries[0].isIntersecting && hasMore && cursor !== null) {
+          setIsFetchingMore(true); 
+        }
+      });
+
+      if (node) observer.current.observe(node);
+    },
+    [isLoading, isFetchingMore, hasMore, cursor]
+  );
+  // ==========================================
 
   const toastTriggered = useRef<boolean>(false);
 
@@ -47,36 +71,49 @@ const HomePage: React.FC = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // 3. Centralized Cursor Fetching Logic
   useEffect(() => {
     let isMounted = true;
     toastTriggered.current = false;
 
     const fetchFeed = async () => {
       try {
-        // If the user clears their browser cache or this is their very first login, 
-        // we fallback to the standard loading spinner.
-        if (posts.length === 0) {
-          setIsLoading(true);
-        }
+        if (!cursor && posts.length === 0) setIsLoading(true);
         
-        // Silent Background Sync
-        const feedResponse = await PostsAPI.getFeed(sortBy.toLowerCase(), 1);
+        // Pass the cursor string to the API
+        const feedResponse = await PostsAPI.getFeed(sortBy.toLowerCase(), cursor);
         
         if (isMounted) {
-          setPosts(feedResponse.posts || []);
+          const newPosts = feedResponse.posts || [];
+          const nextCursor = feedResponse.pagination.nextCursor;
 
-          // BIG TECH UPGRADE 3: Safe Local Caching
-          // We only cache the "Recent" feed, and strictly limit it to the top 15 posts.
-          // This prevents the browser's localStorage from exceeding its 5MB limit and crashing.
-          if (sortBy === "Recent" && feedResponse.posts) {
-            const topPostsToCache = feedResponse.posts.slice(0, 15);
-            localStorage.setItem("feedCache", JSON.stringify(topPostsToCache));
+          // If nextCursor is null, we reached the end of the database
+          setHasMore(nextCursor !== null);
+
+          if (!cursor) {
+            // First Load: Replace the array
+            setPosts(newPosts);
+            if (sortBy === "Recent") {
+              localStorage.setItem("feedCache", JSON.stringify(newPosts.slice(0, 15)));
+            }
+          } else {
+            // Subsequent Loads: Append smoothly and defensively filter duplicates
+            setPosts((prevPosts) => {
+              const existingIds = new Set(prevPosts.map(p => p.id));
+              const uniqueNewPosts = newPosts.filter(p => !existingIds.has(p.id));
+              return [...prevPosts, ...uniqueNewPosts];
+            });
+          }
+          
+          // Prepare the cursor for the next scroll fetch
+          if (nextCursor !== cursor) {
+             setCursor(nextCursor);
           }
         }
       } catch (error) {
         if (isMounted) {
           console.error("Error fetching feed, falling back to mock data:", error);
-          setPosts(MOCK_POSTS);
+          if (!cursor) setPosts(MOCK_POSTS);
           
           if (!toastTriggered.current) {
             toast.error("Failed to load real posts. Showing test data.");
@@ -84,19 +121,35 @@ const HomePage: React.FC = () => {
           }
         }
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+          setIsFetchingMore(false);
+        }
       }
     };
 
-    fetchFeed();
+    // Trigger fetch on initial load OR when the observer requests more
+    if (!cursor || isFetchingMore) {
+      fetchFeed();
+    }
 
-    return () => {
-      isMounted = false;
-    };
-    // Note: We intentionally exclude 'posts.length' from this dependency array
-    // so the effect only re-runs when 'sortBy' changes.
+    return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortBy]);
+  }, [sortBy, isFetchingMore]); 
+
+  // 4. Handle Sort Change: Reset the cursor safely
+  const handleSortChange = (newSort: SortOption) => {
+    if (sortBy === newSort) return; 
+    setSortBy(newSort);
+    setCursor(null); // Reset cursor completely
+    setHasMore(true);
+    setIsFetchingMore(false);
+    setIsSortOpen(false);
+  };
+
+  const handlePostCreated = () => {
+    handleSortChange("Recent"); 
+  };
 
   const isMobile = windowWidth < 768;
   const isTablet = windowWidth < 1024;
@@ -118,10 +171,6 @@ const HomePage: React.FC = () => {
       : "225px minmax(0, 1fr) 275px",
     gap: "1rem", 
     alignItems: "start"
-  };
-
-  const handlePostCreated = () => {
-    setSortBy("Recent"); 
   };
 
   return (
@@ -152,7 +201,7 @@ const HomePage: React.FC = () => {
                   {SORT_OPTIONS.map((option) => (
                     <div 
                       key={option} 
-                      onClick={() => { setSortBy(option); setIsSortOpen(false); }}
+                      onClick={() => handleSortChange(option)}
                       style={{ padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", color: textColor, fontWeight: sortBy === option ? 600 : 400, borderBottom: `1px solid ${borderColor}`, cursor: "pointer" }}
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)"}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = "transparent"}
@@ -171,7 +220,28 @@ const HomePage: React.FC = () => {
                  <Loader2 size={32} className="animate-spin" style={{ color: accentColor }} />
                </div>
             ) : posts.length > 0 ? (
-               posts.map(post => <PostComponent key={post.id} post={post} />)
+               <>
+                 {posts.map(post => <PostComponent key={post.id} post={post} />)}
+                 
+                 {/* Background loader while fetching next cursor payload */}
+                 {isFetchingMore && (
+                   <div style={{ display: "flex", justifyContent: "center", padding: "1rem" }}>
+                     <Loader2 size={24} className="animate-spin" style={{ color: accentColor }} />
+                   </div>
+                 )}
+
+                 {/* The Invisible Trigger Div for Intersection Observer */}
+                 {!isFetchingMore && hasMore && (
+                   <div ref={lastPostElementRef} style={{ height: "20px" }} />
+                 )}
+
+                 {/* End of feed message */}
+                 {!hasMore && (
+                   <div style={{ textAlign: "center", color: mutedText, padding: "2rem", fontSize: "0.9rem" }}>
+                     You're all caught up!
+                   </div>
+                 )}
+               </>
             ) : (
                <div style={{ textAlign: "center", color: mutedText, padding: "2rem", backgroundColor: cardBg, borderRadius: "12px", border: `1px solid ${borderColor}` }}>
                  No posts found. Start writing!
