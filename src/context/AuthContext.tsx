@@ -1,15 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { User } from "../types/api.types";
 import { UsersAPI } from "../api/users.api";
+import { useNavigate } from "react-router-dom";
+import { AuthAPI } from "../api/auth.api";
 
 interface AuthContextType {
   user: User | null;
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoadingAuth: boolean;
-  loginState: (user: User, accessToken: string, refreshToken: string) => void;
+  loginState: (user: User, accessToken: string) => void;
   logoutState: () => void;
-  checkAuth: () => Promise<void>; // ADDED THIS
+  checkAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,46 +22,66 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return cachedUser ? JSON.parse(cachedUser) : null;
   });
   
+  const navigate = useNavigate();
   const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem("accessToken"));
   
-  // PERFORMANCE FIX: Only block rendering if we have a token but NO cached user data
+  // SWR: Only block UI if we have a token but NO cached data
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(() => {
     const hasToken = !!localStorage.getItem("accessToken");
     const hasCachedUser = !!localStorage.getItem("userData");
     return hasToken && !hasCachedUser;
   });
 
-  const logoutState = useCallback(() => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("userData");
-    setAccessToken(null);
-    setUser(null);
-  }, []);
+  const logoutState = useCallback(async () => {
+    try {
+      await AuthAPI.logout(); // Destroy session on Redis backend
+    } catch (error) {
+      console.error("Backend logout failed, proceeding locally", error);
+    } finally {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("userData");
+      setAccessToken(null);
+      setUser(null);
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
 
-  const loginState = useCallback((newUser: User, newAccessToken: string, newRefreshToken: string) => {
+  useEffect(() => {
+    const handleForceLogout = () => {
+      setAccessToken(null);
+      setUser(null);
+      navigate("/login", { replace: true });
+    };
+
+    window.addEventListener("auth:force-logout", handleForceLogout);
+    return () => window.removeEventListener("auth:force-logout", handleForceLogout);
+  }, [navigate]);
+
+  const loginState = useCallback((newUser: User, newAccessToken: string) => {
     localStorage.setItem("accessToken", newAccessToken);
-    localStorage.setItem("refreshToken", newRefreshToken);
     localStorage.setItem("userData", JSON.stringify(newUser));
+    // Notice: refreshToken is no longer saved to localStorage
     setAccessToken(newAccessToken);
     setUser(newUser);
   }, []);
 
   const checkAuth = useCallback(async () => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
+    if (!localStorage.getItem("accessToken")) {
       setIsLoadingAuth(false);
       return;
     }
 
     try {
-      const userData = await UsersAPI.getMe();
-      setUser(userData);
-      setAccessToken(token);
-      localStorage.setItem("userData", JSON.stringify(userData)); // Keep cache fresh
+      // Silent background fetch to update stale cache
+      const freshUserData = await UsersAPI.getMe();
+      const freshToken = localStorage.getItem("accessToken"); 
+      
+      setUser(freshUserData);
+      setAccessToken(freshToken);
+      localStorage.setItem("userData", JSON.stringify(freshUserData));
     } catch (error) {
-      console.error("Session verification failed. Logging out.", error);
-      logoutState();
+      console.error("Background sync failed. Session revoked.", error);
+      await logoutState();
     } finally {
       setIsLoadingAuth(false);
     }
@@ -77,7 +99,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isLoadingAuth,
       loginState,
       logoutState,
-      checkAuth // PROVIDED HERE
+      checkAuth
     }}>
       {children}
     </AuthContext.Provider>

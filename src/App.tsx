@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 
 // Auth & Layout Components
 import AuthPage from "./pages/auth/AuthPage";
-import { OAuthSuccess } from "./pages/auth/OAuthSuccess";
+import OAuthSuccess from "./pages/auth/OAuthSuccess";
 import Profile from "./components/users/Profile";
 import ProtectedLayout from "./components/layout/ProtectedLayout";
 import HomePage from "./pages/home/HomePage";
