@@ -1,8 +1,10 @@
 import axios, { type InternalAxiosRequestConfig, AxiosError } from "axios";
 
+const url = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1",
-  withCredentials: true, // Crucial for OAuth cookies if used
+  baseURL: url,
+  withCredentials: true,
 });
 
 // 1. Inject Access Token into every request
@@ -31,7 +33,7 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           // Attempt to refresh token
-          const { data } = await axios.post(`${api.defaults.baseURL}/auth/refresh-token`, { 
+          const { data } = await axios.post(`${url}/auth/refresh-token`, { 
             refreshToken: refreshToken 
           });
           

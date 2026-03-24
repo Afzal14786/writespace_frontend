@@ -95,3 +95,8 @@ export interface CommentData {
   isLikedByMe?: boolean;
   replies?: CommentData[];
 }
+
+export interface ResetPasswordPayload {
+  token: string;
+  password: string;
+}

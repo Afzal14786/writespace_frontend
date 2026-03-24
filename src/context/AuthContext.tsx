@@ -9,14 +9,25 @@ interface AuthContextType {
   isLoadingAuth: boolean;
   loginState: (user: User, accessToken: string, refreshToken: string) => void;
   logoutState: () => void;
+  checkAuth: () => Promise<void>; // ADDED THIS
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const cachedUser = localStorage.getItem("userData");
+    return cachedUser ? JSON.parse(cachedUser) : null;
+  });
+  
   const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem("accessToken"));
-  const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
+  
+  // PERFORMANCE FIX: Only block rendering if we have a token but NO cached user data
+  const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(() => {
+    const hasToken = !!localStorage.getItem("accessToken");
+    const hasCachedUser = !!localStorage.getItem("userData");
+    return hasToken && !hasCachedUser;
+  });
 
   const logoutState = useCallback(() => {
     localStorage.removeItem("accessToken");
@@ -34,28 +45,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(newUser);
   }, []);
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      const token = localStorage.getItem("accessToken");
-      if (!token) {
-        setIsLoadingAuth(false);
-        return;
-      }
+  const checkAuth = useCallback(async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      setIsLoadingAuth(false);
+      return;
+    }
 
-      try {
-        const userData = await UsersAPI.getMe();
-        setUser(userData);
-        setAccessToken(token);
-      } catch (error) {
-        console.error("Session verification failed. Logging out.", error);
-        logoutState(); // Only clears token if backend confirms it's actually invalid
-      } finally {
-        setIsLoadingAuth(false);
-      }
-    };
-
-    initializeAuth();
+    try {
+      const userData = await UsersAPI.getMe();
+      setUser(userData);
+      setAccessToken(token);
+      localStorage.setItem("userData", JSON.stringify(userData)); // Keep cache fresh
+    } catch (error) {
+      console.error("Session verification failed. Logging out.", error);
+      logoutState();
+    } finally {
+      setIsLoadingAuth(false);
+    }
   }, [logoutState]);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   return (
     <AuthContext.Provider value={{
@@ -64,7 +76,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthenticated: !!user && !!accessToken,
       isLoadingAuth,
       loginState,
-      logoutState
+      logoutState,
+      checkAuth // PROVIDED HERE
     }}>
       {children}
     </AuthContext.Provider>

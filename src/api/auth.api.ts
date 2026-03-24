@@ -3,10 +3,12 @@ import type {
   AuthResponse, 
   RegisterPayload, 
   LoginPayload, 
-  VerifyOtpPayload 
+  VerifyOtpPayload ,
+  ResetPasswordPayload
 } from "../types/api.types";
 
-// Defines the exact structure of your backend's ApiResponse class
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
 interface BackendResponse<T> {
   success: boolean;
   message: string;
@@ -31,5 +33,21 @@ export const AuthAPI = {
 
   logout: async (): Promise<void> => {
     await api.post<BackendResponse<null>>("/auth/logout");
+  },
+
+  forgotPassword: async (email: string): Promise<void> => {
+    await api.post<BackendResponse<null>>("/auth/forgot-password", { email });
+  },
+
+  resetPassword: async (data: ResetPasswordPayload): Promise<void> => {
+    await api.post<BackendResponse<null>>("/auth/reset-password", data);
+  },
+  
+  googleLogin: (): void => {
+    window.location.href = `${API_URL}/auth/google`;
+  },
+
+  githubLogin: (): void => {
+    window.location.href = `${API_URL}/auth/github`;
   }
 };
