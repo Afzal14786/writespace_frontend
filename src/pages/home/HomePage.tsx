@@ -12,7 +12,6 @@ import { PostsAPI } from "../../api/posts.api";
 
 import { MOCK_POSTS } from "../../data/mockPosts";
 
-// FIX: Strictly type the sorting options
 type SortOption = "Recent" | "Top" | "Discussed";
 const SORT_OPTIONS: SortOption[] = ["Recent", "Top", "Discussed"];
 
@@ -24,8 +23,21 @@ const HomePage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>("Recent");
   const [isSortOpen, setIsSortOpen] = useState<boolean>(false);
   
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // BIG TECH UPGRADE 1: Instant UI Rendering
+  // We initialize the state directly from localStorage so the browser can paint
+  // the feed in 0 milliseconds before any network requests are even made.
+  const [posts, setPosts] = useState<Post[]>(() => {
+    try {
+      const cachedPosts = localStorage.getItem("feedCache");
+      return cachedPosts ? JSON.parse(cachedPosts) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // BIG TECH UPGRADE 2: Smart Loading State
+  // We only show the loading spinner if the cache is completely empty.
+  const [isLoading, setIsLoading] = useState<boolean>(posts.length === 0);
 
   const toastTriggered = useRef<boolean>(false);
 
@@ -41,11 +53,25 @@ const HomePage: React.FC = () => {
 
     const fetchFeed = async () => {
       try {
-        setIsLoading(true);
+        // If the user clears their browser cache or this is their very first login, 
+        // we fallback to the standard loading spinner.
+        if (posts.length === 0) {
+          setIsLoading(true);
+        }
+        
+        // Silent Background Sync
         const feedResponse = await PostsAPI.getFeed(sortBy.toLowerCase(), 1);
         
         if (isMounted) {
           setPosts(feedResponse.posts || []);
+
+          // BIG TECH UPGRADE 3: Safe Local Caching
+          // We only cache the "Recent" feed, and strictly limit it to the top 15 posts.
+          // This prevents the browser's localStorage from exceeding its 5MB limit and crashing.
+          if (sortBy === "Recent" && feedResponse.posts) {
+            const topPostsToCache = feedResponse.posts.slice(0, 15);
+            localStorage.setItem("feedCache", JSON.stringify(topPostsToCache));
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -67,6 +93,9 @@ const HomePage: React.FC = () => {
     return () => {
       isMounted = false;
     };
+    // Note: We intentionally exclude 'posts.length' from this dependency array
+    // so the effect only re-runs when 'sortBy' changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy]);
 
   const isMobile = windowWidth < 768;
@@ -120,7 +149,6 @@ const HomePage: React.FC = () => {
               
               {isSortOpen && (
                 <div style={{ position: "absolute", top: "100%", right: 0, marginTop: "8px", width: "140px", backgroundColor: cardBg, border: `1px solid ${borderColor}`, borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", zIndex: 10, overflow: "hidden" }}>
-                  {/* FIX: Now maps over strictly typed SORT_OPTIONS instead of raw strings */}
                   {SORT_OPTIONS.map((option) => (
                     <div 
                       key={option} 
