@@ -11,18 +11,21 @@ interface BackendResponse<T> {
 export interface PaginatedPosts {
   posts: Post[];
   pagination: {
-    page: number;
     limit: number;
-    total: number;
-    totalPages: number;
+    nextCursor: string | null;
   };
 }
 
 export const PostsAPI = {
-  getFeed: async (sort: string = "recent", page: number = 1): Promise<PaginatedPosts> => {
-    const response = await api.get<BackendResponse<PaginatedPosts>>(`/posts`, {
-      params: { sort, page, limit: 20 }
-    });
+  getFeed: async (sort: string = "recent", cursor: string | null = null): Promise<PaginatedPosts> => {
+    const params: Record<string, string | number> = { sort, limit: 20 };
+    
+    // Only attach the cursor if it exists (i.e., not the first load)
+    if (cursor) {
+      params.cursor = cursor;
+    }
+
+    const response = await api.get<BackendResponse<PaginatedPosts>>(`/posts`, { params });
     return response.data.data;
   },
 

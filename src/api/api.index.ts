@@ -1,5 +1,15 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosError } from "axios";
 
+// 1. MODULE AUGMENTATION: We inject _retry safely into native Axios types
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    _retry?: boolean;
+  }
+  export interface InternalAxiosRequestConfig {
+    _retry?: boolean;
+  }
+}
+
 const url = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
 const api = axios.create({
@@ -24,7 +34,6 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
-// 1. Inject Access Token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem("accessToken");
@@ -36,15 +45,15 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 2. Handle 401 Unauthorized (Queue System)
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    // 100% Type safe. No 'any' casting required!
+    const originalRequest = error.config as InternalAxiosRequestConfig;
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       if (isRefreshing) {
-        return new Promise((resolve, reject) => {
+        return new Promise<string>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
           .then((token) => {
@@ -60,13 +69,14 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post(
-          `${url}/auth/refresh-token`,
-          {}, // Body is empty, relying entirely on the HttpOnly cookie
-          { withCredentials: true }
+        // 100% Type safe request config
+        const response = await api.post(
+          `/auth/refresh-token`,
+          {}, 
+          { _retry: true }
         );
 
-        const newAccessToken = data.data.accessToken;
+        const newAccessToken = response.data.data.accessToken;
         localStorage.setItem("accessToken", newAccessToken);
 
         processQueue(null, newAccessToken);
@@ -80,6 +90,8 @@ api.interceptors.response.use(
         processQueue(refreshError, null);
         localStorage.removeItem("accessToken");
         localStorage.removeItem("userData");
+        localStorage.removeItem("user");
+        localStorage.removeItem("feedCache");
         window.dispatchEvent(new Event("auth:force-logout"));
         return Promise.reject(refreshError);
       } finally {
