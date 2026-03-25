@@ -147,8 +147,16 @@ const HomePage: React.FC = () => {
     setIsSortOpen(false);
   };
 
-  const handlePostCreated = () => {
-    handleSortChange("Recent"); 
+  const handlePostCreated = (newPost: Post) => {
+    if (sortBy === "Recent") {
+      // Optimistic UI: If we are already on the "Recent" tab, immediately inject 
+      // the new post at the top of the array. The user sees it instantly!
+      setPosts((prevPosts) => [newPost, ...prevPosts]);
+    } else {
+      // If we are looking at "Top" or "Discussed", reset the feed to "Recent"
+      // to logically show the user their brand new post.
+      handleSortChange("Recent"); 
+    }
   };
 
   const isMobile = windowWidth < 768;

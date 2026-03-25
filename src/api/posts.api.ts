@@ -35,32 +35,33 @@ export const PostsAPI = {
   },
 
   createPost: async (payload: CreatePostPayload): Promise<Post> => {
-    // If the user attached images, we MUST use FormData
     if (payload.images && payload.images.length > 0) {
       const formData = new FormData();
       formData.append("title", payload.title);
       formData.append("content", payload.content);
-      
-      payload.images.forEach(file => formData.append("media", file));
+      formData.append("isPublished", "true");
+      formData.append("banner", payload.images[0]); 
       
       if (payload.codeSnippets && payload.codeSnippets.length > 0) {
         formData.append("codeSnippets", JSON.stringify(payload.codeSnippets));
+      }
+
+      if (payload.tags && payload.tags.length > 0) {
+        formData.append("tags", JSON.stringify(payload.tags));
       }
 
       const response = await api.post<BackendResponse<Post>>("/posts", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       return response.data.data;
-    } 
-    
-    else {
+    } else {
       const jsonPayload = {
         title: payload.title,
         content: payload.content,
         codeSnippets: payload.codeSnippets,
+        tags: payload.tags,
         isPublished: true
       };
-      
       const response = await api.post<BackendResponse<Post>>("/posts", jsonPayload);
       return response.data.data;
     }

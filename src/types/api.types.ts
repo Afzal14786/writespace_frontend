@@ -56,25 +56,42 @@ export interface VerifyOtpPayload {
 
 // Post Types
 export interface CodeSnippet {
-  id?: string;
   language: string;
   code: string;
+  title?: string;
 }
 
 export interface Post {
   id: string;
-  userId: string;
-  title?: string;
-  content?: string;
-  media?: string[];
-  codeSnippets?: CodeSnippet[];
-  likesCount: number;
-  commentsCount: number;
-  readTime?: number;
+  title: string;
+  slug: string;
+  subtitle?: string | null;
+  content: string;
+  excerpt?: string | null;
+  media?: string[] | null;
+  codeSnippets?: CodeSnippet[] | null; // Added codeSnippets
+  coverImageUrl?: string | null;
+  coverImageAltText?: string | null;
+  tags?: string[] | null;
+  authorId: string;
+  
+  // Added from your backend Drizzle joins
+  author: {
+    id: string;
+    username: string;
+    profileImageUrl?: string | null;
+  };
+  isLikedByMe: boolean; // Crucial for Optimistic UI
+
+  status: "draft" | "published" | "archived";
+  publishDate?: string | null;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  readTime?: number | null;
   createdAt: string;
-  author: User;
-  isLiked?: boolean;
-  isLikedByMe?: boolean;
+  updatedAt: string;
 }
 
 export interface CreatePostPayload {
@@ -82,6 +99,7 @@ export interface CreatePostPayload {
   content: string;
   images?: File[]; 
   codeSnippets?: Omit<CodeSnippet, 'id'>[];
+  tags?: string[];
 }
 
 export interface CommentData {
