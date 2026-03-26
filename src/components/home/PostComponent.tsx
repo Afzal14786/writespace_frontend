@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ThumbsUp, MessageSquare, Repeat, Share2, MoreHorizontal, Link as LinkIcon, Twitter, Linkedin, Facebook, X, Trash2, Heart, Code2, UserPlus, Pencil } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ThumbsUp, MessageSquare, Repeat, Share2, MoreHorizontal, Link as LinkIcon, Twitter, Linkedin, Facebook, X, Trash2, Heart, UserPlus, Pencil } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
@@ -8,8 +8,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Post } from "../../types/api.types";
 import { InteractionsAPI } from "../../api/interactions.api";
 import { PostsAPI } from "../../api/posts.api";
-import CodeZenViewer, { type CodeSnippet } from "./CodeZenViewer";
 import CommentSection from "./CommentSection";
+import CreatePostEditor from "./CreatePostEditor"; 
+
+// CodeMirror imports for read-only snippet rendering
+import CodeMirror from '@uiw/react-codemirror';
+import { vscodeDark } from '@uiw/codemirror-theme-vscode';
+import { githubLight } from '@uiw/codemirror-theme-github';
+import { javascript } from '@codemirror/lang-javascript';
+import { python } from '@codemirror/lang-python';
+import { cpp } from '@codemirror/lang-cpp';  
+import { rust } from '@codemirror/lang-rust';  
+import { go } from '@codemirror/lang-go';  
+import { sql } from '@codemirror/lang-sql';  
+import { java } from '@codemirror/lang-java';  
 
 interface ExtendedAuthor {
   id: string;
@@ -29,13 +41,16 @@ interface PostComponentProps {
   onPostDeleted?: (postId: string) => void;
 }
 
+interface ParsedCodeSnippet {
+  language: string;
+  code: string;
+}
+
 const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) => {
   const { theme } = useTheme();
   const { user: authUser } = useAuth();
-  const navigate = useNavigate();
   const isDark = theme === "dark";
 
-  // Responsive logic
   const [windowWidth, setWindowWidth] = useState<number>(window.innerWidth);
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -44,44 +59,41 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
   }, []);
   const isMobile = windowWidth < 480;
 
-  // Interaction State
+  const [currentPost, setCurrentPost] = useState<ExtendedPost>(post);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+
+  useEffect(() => {
+    setCurrentPost(post);
+  }, [post]);
+
   const [isFollowing, setIsFollowing] = useState<boolean>(false); 
-  const [isLiked, setIsLiked] = useState<boolean>(post.isLikedByMe || post.isLiked || false);
-  const [likesCount, setLikesCount] = useState<number>(post.likeCount || 0); 
-  const [sharesCount, setSharesCount] = useState<number>(post.shareCount || 0); 
+  const [isLiked, setIsLiked] = useState<boolean>(currentPost.isLikedByMe || currentPost.isLiked || false);
+  const [likesCount, setLikesCount] = useState<number>(currentPost.likeCount || 0); 
+  const [sharesCount, setSharesCount] = useState<number>(currentPost.shareCount || 0); 
   
   useEffect(() => {
-    const syncStateWithProps = () => {
-      const nextLikedState = post.isLikedByMe || post.isLiked || false;
-      const nextLikeCount = post.likeCount || 0;
+    const nextLikedState = currentPost.isLikedByMe || currentPost.isLiked || false;
+    const nextLikeCount = currentPost.likeCount || 0;
+    setIsLiked((prev) => (prev !== nextLikedState ? nextLikedState : prev));
+    setLikesCount((prev) => (prev !== nextLikeCount ? nextLikeCount : prev));
+  }, [currentPost.isLikedByMe, currentPost.isLiked, currentPost.likeCount]);
 
-      setIsLiked((prev) => (prev !== nextLikedState ? nextLikedState : prev));
-      setLikesCount((prev) => (prev !== nextLikeCount ? nextLikeCount : prev));
-    };
-
-    syncStateWithProps();
-  }, [post.isLikedByMe, post.isLiked, post.likeCount]);
-
-  // UI State
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
   const [isDeleted, setIsDeleted] = useState<boolean>(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isCodeZenOpen, setIsCodeZenOpen] = useState<boolean>(false);
   
-  // Double-tap Animation State
   const [showFloatingHeart, setShowFloatingHeart] = useState<boolean>(false);
   const lastTapRef = useRef<number>(0);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
   
-  const rawTextLength = post.content ? post.content.replace(/<[^>]*>?/gm, '').length : 0;
+  const rawTextLength = currentPost.content ? currentPost.content.replace(/<[^>]*>?/gm, '').length : 0;
   const isLongPost = rawTextLength > 200; 
   const [isTextExpanded, setIsTextExpanded] = useState<boolean>(!isLongPost);
   
-  const isOwnPost = authUser?.id === post.author?.id;
+  const isOwnPost = authUser?.id === currentPost.author?.id;
   
-  // Theming
   const cardBg = isDark ? "#1e293b" : "#ffffff";
   const borderColor = isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)";
   const textColor = isDark ? "#f1f5f9" : "#0f172a";
@@ -90,9 +102,9 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
   const tagBg = isDark ? "rgba(99, 102, 241, 0.15)" : "#e0e7ff";
 
   useEffect(() => {
-    document.body.style.overflow = isShareModalOpen ? "hidden" : "unset";
+    document.body.style.overflow = isShareModalOpen || isEditing ? "hidden" : "unset";
     return () => { document.body.style.overflow = "unset"; };
-  }, [isShareModalOpen]);
+  }, [isShareModalOpen, isEditing]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -106,7 +118,7 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
 
   const handleFollowToggle = () => {
     setIsFollowing(!isFollowing);
-    const displayName = post.author?.fullname || post.author?.username || "User";
+    const displayName = currentPost.author?.fullname || currentPost.author?.username || "User";
     toast.success(isFollowing ? `Unfollowed ${displayName}` : `Following ${displayName}`);
   };
 
@@ -118,10 +130,11 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
     setLikesCount(prev => willBeLiked ? prev + 1 : prev - 1);
 
     try {
-      const response = await InteractionsAPI.toggleLike(post.id);
-      if (response) {
-        setLikesCount(response.count ?? (willBeLiked ? likesCount + 1 : likesCount - 1));
-        setIsLiked(response.isLiked ?? willBeLiked);
+      const response = await PostsAPI.likePost(currentPost.id); 
+      const isBackendLiked = response.status === "liked";
+      if (isBackendLiked !== willBeLiked) {
+        setIsLiked(isBackendLiked);
+        setLikesCount(prev => isBackendLiked ? prev + 1 : prev - 1);
       }
     } catch (error) {
       console.error(error);
@@ -146,18 +159,14 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
   const handleDeletePost = async () => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
-      await PostsAPI.deletePost(post.id);
+      await PostsAPI.deletePost(currentPost.id);
       setIsDeleted(true);
       toast.success("Post deleted.");
-      if (onPostDeleted) onPostDeleted(post.id);
-    } catch (error) {
+      if (onPostDeleted) onPostDeleted(currentPost.id);
+    } catch (error: unknown) {
       console.error(error);
       toast.error("Failed to delete post.");
     }
-  };
-
-  const handleEditPost = () => {
-    navigate(`/edit-post/${post.id}`);
   };
 
   const handleShareSubmit = async (platform: string, url: string) => {
@@ -169,10 +178,23 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
       } else {
         window.open(url, '_blank');
       }
-      await InteractionsAPI.sharePost(post.id, platform); 
+      await InteractionsAPI.sharePost(currentPost.id, platform); 
       setSharesCount(prev => prev + 1);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
+    }
+  };
+
+  const getLanguageExtension = (lang: string) => {
+    switch (lang.toLowerCase()) { 
+      case "python": return [python()]; 
+      case "typescript": return [javascript({ typescript: true })]; 
+      case "java": return [java()]; 
+      case "cpp": return [cpp()];
+      case "rust": return [rust()];
+      case "go": return [go()];
+      case "sql": return [sql()];
+      default: return [javascript()]; 
     }
   };
 
@@ -186,25 +208,29 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
 
     return (
       <div style={{ display: "grid", gap: "4px", marginTop: "12px", gridTemplateColumns: gridTemplate, borderRadius: "8px", overflow: "hidden" }}>
-        {media.slice(0, 4).map((img, idx) => (
-          <div key={idx} onClick={(e) => { e.stopPropagation(); setSelectedImage(img); }} style={{ position: "relative", paddingTop: count === 1 ? "56.25%" : "100%", backgroundColor: isDark ? "#000" : "#f1f5f9", cursor: "pointer" }}>
-            <img src={img} alt={`Post media ${idx}`} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-            {idx === 3 && count > 4 && (
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "1.5rem", fontWeight: "bold" }}>
-                +{count - 4}
-              </div>
-            )}
-          </div>
-        ))}
+        {media.slice(0, 4).map((img, idx) => {
+          const imgSrc = img.startsWith('/') ? `http://localhost:8000${img}` : img;
+          return (
+            <div key={idx} onClick={(e) => { e.stopPropagation(); setSelectedImage(imgSrc); }} style={{ position: "relative", paddingTop: count === 1 ? "56.25%" : "100%", backgroundColor: isDark ? "#000" : "#f1f5f9", cursor: "pointer" }}>
+              <img src={imgSrc} alt={`Post media ${idx}`} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+              {idx === 3 && count > 4 && (
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "1.5rem", fontWeight: "bold" }}>
+                  +{count - 4}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
 
   if (isDeleted) return null;
 
-  const shareUrl = `${window.location.origin}/post/${post.id}`;
+  const shareUrl = `${window.location.origin}/post/${currentPost.id}`;
   
-  const snippets: CodeSnippet[] = (post.codeSnippets || []).map((s: unknown) => {
+  // 🔥 FIX: Strict type narrowing for the code snippets array without using any
+  const snippets: ParsedCodeSnippet[] = (currentPost.codeSnippets || []).map((s: unknown) => {
     if (typeof s === 'object' && s !== null) {
       const record = s as Record<string, unknown>;
       return {
@@ -223,24 +249,22 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
           <div style={{ display: "flex", gap: "12px", minWidth: 0, flex: 1 }}>
             
-            {/* 🔥 Clickable Avatar */}
-            <Link to={`/profile/${post.author?.username}`} style={{ textDecoration: "none" }}>
+            <Link to={`/profile/${currentPost.author?.username}`} style={{ textDecoration: "none" }}>
               <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-                <img src={post.author?.profileImageUrl || `https://ui-avatars.com/api/?name=${post.author?.username || 'User'}&background=random`} alt={post.author?.username || 'User'} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={currentPost.author?.profileImageUrl || `https://ui-avatars.com/api/?name=${currentPost.author?.username || 'User'}&background=random`} alt={currentPost.author?.username || 'User'} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
             </Link>
             
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, justifyContent: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                 
-                {/* 🔥 Clickable Full Name + Username */}
-                <Link to={`/profile/${post.author?.username}`} style={{ textDecoration: "none", color: textColor, display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", cursor: "pointer" }}>
+                <Link to={`/profile/${currentPost.author?.username}`} style={{ textDecoration: "none", color: textColor, display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", cursor: "pointer" }}>
                   <span style={{ fontWeight: 700, fontSize: "1rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {post.author?.fullname || post.author?.username || "Unknown User"}
+                    {currentPost.author?.fullname || currentPost.author?.username || "Unknown User"}
                   </span>
-                  {post.author?.fullname && (
+                  {currentPost.author?.fullname && (
                     <span style={{ color: mutedText, fontSize: "0.85rem", fontWeight: 500 }}>
-                      (@{post.author.username})
+                      (@{currentPost.author.username})
                     </span>
                   )}
                 </Link>
@@ -255,10 +279,10 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
                 )}
               </div>
               <span style={{ fontSize: "0.85rem", color: mutedText, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {post.author?.headline || "Software Engineer"}
+                {currentPost.author?.headline || "Software Engineer"}
               </span>
               <span style={{ fontSize: "0.75rem", color: mutedText, marginTop: "2px" }}>
-                {new Date(post.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} • {post.readTime || 1} min read
+                {new Date(currentPost.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} • {currentPost.readTime || 1} min read
               </span>
             </div>
           </div>
@@ -271,9 +295,18 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
             
             {isOptionsMenuOpen && isOwnPost && (
               <div style={{ position: "absolute", top: "100%", right: 0, marginTop: "8px", backgroundColor: cardBg, border: `1px solid ${borderColor}`, borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", zIndex: 10, width: "160px", overflow: "hidden" }}>
-                <button onClick={handleEditPost} style={{ width: "100%", display: "flex", alignItems: "center", gap: "8px", padding: "12px 14px", background: "none", border: "none", borderBottom: `1px solid ${borderColor}`, color: textColor, cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}>
+                
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setIsEditing(true); 
+                    setIsOptionsMenuOpen(false); 
+                  }} 
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: "8px", padding: "12px 14px", background: "none", border: "none", borderBottom: `1px solid ${borderColor}`, color: textColor, cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
+                >
                   <Pencil size={16} /> Edit Post
                 </button>
+
                 <button onClick={handleDeletePost} style={{ width: "100%", display: "flex", alignItems: "center", gap: "8px", padding: "12px 14px", background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}>
                   <Trash2 size={16} /> Delete Post
                 </button>
@@ -299,18 +332,18 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
             )}
           </AnimatePresence>
 
-          {post.title && (
+          {currentPost.title && (
             <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: textColor, margin: "0 0 8px 0", lineHeight: "1.4" }}>
-              {post.title}
+              {currentPost.title}
             </h2>
           )}
 
-          {post.content && (
+          {currentPost.content && (
             <div style={{ position: "relative", zIndex: 1 }}>
               <div 
                 className="tiptap-content" 
                 style={{ fontSize: "0.95rem", lineHeight: "1.6", color: isDark ? "rgba(255,255,255,0.9)" : "#334155", wordBreak: "break-word", display: isTextExpanded ? "block" : "-webkit-box", WebkitLineClamp: isTextExpanded ? "unset" : 3, WebkitBoxOrient: "vertical", overflow: "hidden" }} 
-                dangerouslySetInnerHTML={{ __html: post.content }} 
+                dangerouslySetInnerHTML={{ __html: currentPost.content }} 
               />
               {!isTextExpanded && (
                 <button onClick={(e) => { e.stopPropagation(); setIsTextExpanded(true); }} style={{ background: "none", border: "none", color: mutedText, cursor: "pointer", padding: "4px 0", fontSize: "0.9rem", fontWeight: 600, display: "block" }}>
@@ -321,40 +354,35 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
           )}
 
           <div style={{ pointerEvents: "auto" }}>
-            {renderImageGrid(post.media || [])}
+            {renderImageGrid(currentPost.media || [])}
           </div>
 
-          {/* CODE ZEN ENTRY POINT */}
-          {snippets.length > 0 && (
-            <div 
-              onClick={(e) => { e.stopPropagation(); setIsCodeZenOpen(true); }}
-              style={{ marginTop: "12px", borderRadius: "12px", border: `1px solid ${borderColor}`, backgroundColor: isDark ? "#0d1117" : "#f8fafc", padding: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", transition: "all 0.2s", zIndex: 2, position: "relative" }}
-              onMouseOver={(e) => e.currentTarget.style.borderColor = primaryAction}
-              onMouseOut={(e) => e.currentTarget.style.borderColor = borderColor}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ padding: "10px", borderRadius: "8px", backgroundColor: isDark ? "#1e293b" : "#e2e8f0" }}>
-                  <Code2 size={24} color={primaryAction} />
+          {/* Inline Read-Only Code Snippet Renderer */}
+          {snippets && snippets.length > 0 && (
+            <div style={{ pointerEvents: "auto", marginTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              {snippets.map((snippet, index) => (
+                <div key={index} onClick={(e) => e.stopPropagation()} style={{ borderRadius: "8px", overflow: "hidden", border: `1px solid ${borderColor}`, boxShadow: isDark ? "0 4px 6px rgba(0,0,0,0.3)" : "0 2px 4px rgba(0,0,0,0.05)" }}>
+                  <div style={{ backgroundColor: isDark ? "#0d1117" : "#f1f5f9", padding: "6px 12px", fontSize: "0.75rem", color: mutedText, fontWeight: 600, borderBottom: `1px solid ${borderColor}`, textTransform: "uppercase", display: "flex", justifyContent: "space-between" }}>
+                    <span>{snippet.language}</span>
+                  </div>
+                  <CodeMirror
+                    value={snippet.code}
+                    theme={isDark ? vscodeDark : githubLight}
+                    extensions={getLanguageExtension(snippet.language)}
+                    editable={false}
+                    readOnly={true}
+                    basicSetup={{ lineNumbers: true, foldGutter: false, highlightActiveLine: false }}
+                    style={{ fontSize: "0.85rem" }}
+                  />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontWeight: 600, color: textColor, fontSize: "0.95rem" }}>Contains {snippets.length} Code Snippet{snippets.length > 1 ? "s" : ""}</span>
-                  <span style={{ color: mutedText, fontSize: "0.8rem", marginTop: "2px" }}>Click to open Viewer</span>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: "6px" }}>
-                {Array.from(new Set(snippets.map(s => s.language))).slice(0, 2).map(lang => (
-                  <span key={lang} style={{ padding: "4px 8px", borderRadius: "4px", backgroundColor: isDark ? "#334155" : "#e2e8f0", color: textColor, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase" }}>
-                    {lang}
-                  </span>
-                ))}
-              </div>
+              ))}
             </div>
           )}
 
           {/* TAGS */}
-          {post.tags && post.tags.length > 0 && (
-            <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap", zIndex: 1, position: "relative" }}>
-               {post.tags.map(tag => (
+          {currentPost.tags && currentPost.tags.length > 0 && (
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap", zIndex: 1, position: "relative" }}>
+               {currentPost.tags.map(tag => (
                   <span key={tag} style={{ color: primaryAction, backgroundColor: tagBg, padding: "4px 12px", borderRadius: "16px", fontSize: "0.8rem", fontWeight: 600 }}>
                     #{tag}
                   </span>
@@ -370,7 +398,7 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
             <span>{likesCount}</span>
           </div>
           <div style={{ display: "flex", gap: "12px" }}>
-            <span>{post.commentCount || 0} comments</span>
+            <span>{currentPost.commentCount || 0} comments</span>
             <span>{sharesCount} shares</span>
           </div>
         </div>
@@ -396,8 +424,8 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
 
         {showComments && (
           <CommentSection 
-            postId={post.id} 
-            postAuthorUsername={post.author?.username || ""} 
+            postId={currentPost.id} 
+            postAuthorUsername={currentPost.author?.username || ""} 
           />
         )}
       </div>
@@ -448,12 +476,16 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
         </div>
       )}
 
-      <CodeZenViewer 
-        isOpen={isCodeZenOpen} 
-        onClose={() => setIsCodeZenOpen(false)} 
-        snippets={snippets}
-        title={post.title}
-      />
+      {isEditing && (
+        <CreatePostEditor 
+          editPost={currentPost as unknown as Post} 
+          onCloseEdit={() => setIsEditing(false)}
+          onPostUpdated={(updatedPost) => {
+            setCurrentPost(prev => ({ ...prev, ...updatedPost }));
+            setIsEditing(false);
+          }}
+        />
+      )}
     </>
   );
 };
