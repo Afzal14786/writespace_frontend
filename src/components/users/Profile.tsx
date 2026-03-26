@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { MapPin, Calendar, Edit3, UserPlus, MessageSquare, FileText, Code, Image as ImageIcon, X, Loader2, User as UserIcon } from "lucide-react";
+import { MapPin, Calendar, Edit3, UserPlus, MessageSquare, FileText, Code, X, Loader2, User as UserIcon } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
@@ -14,6 +14,20 @@ type TabType = "ALL" | "CODE" | "MEDIA";
 
 interface ApiErrorResponse {
   response?: { data?: { message?: string; }; };
+}
+
+// 🔥 Helper interface to satisfy PostComponent props safely
+interface ExtendedAuthor {
+  id: string;
+  username: string;
+  fullname?: string;
+  profileImageUrl?: string | null;
+  headline?: string;
+}
+
+interface ExtendedPost extends Omit<Post, 'author'> {
+  author: ExtendedAuthor;
+  isLiked?: boolean;
 }
 
 const Profile: React.FC = () => {
@@ -42,43 +56,87 @@ const Profile: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   
-  // 🔥 CLEANED: Removed unused social link states
   const [editForm, setEditForm] = useState({
     fullname: "", headline: "", bio: "", location: "",
   });
-
+  
   const [profileFile, setProfileFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
 
+  // Pagination State
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [isFetchingMore, setIsFetchingMore] = useState<boolean>(false);
+
+  // Intersection Observer Setup
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastPostElementRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (isLoading || isFetchingMore) return;
+      if (observer.current) observer.current.disconnect();
+
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMore && cursor !== null) {
+          setIsFetchingMore(true); 
+        }
+      });
+
+      if (node) observer.current.observe(node);
+    },
+    [isLoading, isFetchingMore, hasMore, cursor]
+  );
+
+  // Fetch User Data & Initial Posts
   useEffect(() => {
     let isMounted = true;
 
     const fetchProfileData = async () => {
-      if (!authUser) return;
+      const targetUsername = username || authUser?.username;
+      
+      if (!targetUsername) {
+        navigate("/home");
+        return;
+      }
 
       try {
-        setIsLoading(true);
+        if (!cursor) setIsLoading(true);
 
-        const targetUsername = username || authUser.username;
-        const profileData = await UsersAPI.getProfileByUsername(targetUsername);
-
-        if (isMounted) {
-          setProfileUser(profileData);
-          setEditForm({
-            fullname: profileData.fullname || "",
-            headline: profileData.headline || "",
-            bio: profileData.bio || "",
-            location: profileData.location || "",
-          });
+        if (!profileUser && !cursor) {
+          const profileData = await UsersAPI.getProfileByUsername(targetUsername);
+          if (isMounted) {
+            setProfileUser(profileData);
+            setEditForm({
+              fullname: profileData.fullname || "",
+              headline: profileData.headline || "",
+              bio: profileData.bio || "",
+              location: profileData.location || "",
+            });
+          }
         }
 
-        const feedResponse = (await PostsAPI.getFeed("recent", 1)) as PaginatedPosts;
+        const currentProfileId = profileUser?.id || (await UsersAPI.getProfileByUsername(targetUsername)).id;
 
-        if (feedResponse && feedResponse.posts) {
-          const filteredPosts = feedResponse.posts.filter((p: Post) => p.author.username === targetUsername);
-          if (isMounted) setUserPosts(filteredPosts);
-        } else {
-          if (isMounted) setUserPosts([]);
+        const feedResponse = (await PostsAPI.getPosts(cursor || undefined, 20, currentProfileId)) as PaginatedPosts;
+
+        if (isMounted) {
+          const newPosts = feedResponse.posts || [];
+          const nextCursor = feedResponse.pagination?.nextCursor || null;
+
+          setHasMore(nextCursor !== null);
+
+          if (!cursor) {
+            setUserPosts(newPosts);
+          } else {
+            setUserPosts((prevPosts) => {
+              const existingIds = new Set(prevPosts.map(p => p.id));
+              const uniqueNewPosts = newPosts.filter(p => !existingIds.has(p.id));
+              return [...prevPosts, ...uniqueNewPosts];
+            });
+          }
+          
+          if (nextCursor !== cursor) {
+             setCursor(nextCursor);
+          }
         }
       } catch (error: unknown) {
         console.error("Profile Fetch Error:", error);
@@ -88,13 +146,20 @@ const Profile: React.FC = () => {
           navigate("/home");
         }
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+          setIsFetchingMore(false);
+        }
       }
     };
 
-    fetchProfileData();
+    if (!cursor || isFetchingMore) {
+      fetchProfileData();
+    }
+
     return () => { isMounted = false; };
-  }, [username, authUser, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username, authUser, navigate, isFetchingMore]);
 
   const isOwnProfile = authUser?.username === profileUser?.username;
 
@@ -102,7 +167,6 @@ const Profile: React.FC = () => {
     if (!profileUser) return;
     setIsSaving(true);
 
-    // 🔥 CLEANED: Strictly passing only what exists in our form
     const payload: UpdateProfilePayload = {
       personal_info: {
         fullname: editForm.fullname,
@@ -118,9 +182,9 @@ const Profile: React.FC = () => {
       const updatedUser = await UsersAPI.updateProfile(profileUser.id, payload);
       setProfileUser(updatedUser);
 
-      const token = localStorage.getItem("accessToken") || "";
-      const refresh = localStorage.getItem("refreshToken") || "";
-      loginState(updatedUser, token, refresh);
+      const token = localStorage.getItem("accessToken");
+      
+      if (token) loginState(updatedUser, token);
 
       setIsEditModalOpen(false);
       toast.success("Profile updated successfully!");
@@ -145,10 +209,10 @@ const Profile: React.FC = () => {
   const borderColor = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
   const accentColor = "#6366f1";
 
-  if (isLoading) {
+  if (isLoading && !isFetchingMore) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
-        <Loader2 size={40} className="animate-spin text-indigo-500" />
+        <Loader2 size={40} className="animate-spin" color={accentColor} />
       </div>
     );
   }
@@ -159,6 +223,7 @@ const Profile: React.FC = () => {
     <div style={{ maxWidth: "860px", margin: "0 auto", paddingTop: "80px", paddingLeft: isMobile ? "0.5rem" : "1rem", paddingRight: isMobile ? "0.5rem" : "1rem", paddingBottom: "3rem" }}>
       <div style={{ backgroundColor: bgCard, borderRadius: "16px", border: `1px solid ${borderColor}`, overflow: "hidden", marginBottom: "1.5rem", boxShadow: isDark ? "0 10px 30px rgba(0,0,0,0.2)" : "0 4px 20px rgba(0,0,0,0.05)" }}>
         
+        {/* Banner Section */}
         <div style={{ height: isMobile ? "140px" : "200px", background: bannerFile ? `url(${URL.createObjectURL(bannerFile)}) center/cover` : profileUser.bannerImageUrl ? `url(${profileUser.bannerImageUrl}) center/cover` : "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", position: "relative" }}>
           {isOwnProfile && (
             <>
@@ -170,9 +235,11 @@ const Profile: React.FC = () => {
           )}
         </div>
 
+        {/* Profile Info Section */}
         <div style={{ padding: isMobile ? "0 1rem 1.5rem 1rem" : "0 2rem 2rem 2rem", position: "relative" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: isMobile ? "-45px" : "-65px", marginBottom: "16px" }}>
             
+            {/* Avatar */}
             <div style={{ position: "relative", width: isMobile ? "100px" : "140px", height: isMobile ? "100px" : "140px", borderRadius: "50%", border: `4px solid ${bgCard}`, backgroundColor: isDark ? "#334155" : "#e2e8f0", overflow: "hidden", zIndex: 10 }}>
               {profileFile ? (
                 <img src={URL.createObjectURL(profileFile)} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -191,6 +258,7 @@ const Profile: React.FC = () => {
               )}
             </div>
 
+            {/* Action Buttons */}
             <div style={{ display: "flex", gap: "10px", zIndex: 10 }}>
               {isOwnProfile ? (
                 <button onClick={() => setIsEditModalOpen(true)} style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "transparent", border: `1px solid ${borderColor}`, color: textColor, padding: isMobile ? "6px 12px" : "8px 20px", borderRadius: "24px", cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", transition: "background 0.2s" }}>
@@ -209,16 +277,17 @@ const Profile: React.FC = () => {
             </div>
           </div>
 
+          {/* Text Info */}
           <div>
             <h1 style={{ fontSize: isMobile ? "1.4rem" : "1.8rem", fontWeight: 800, color: textColor, margin: "0 0 4px 0", letterSpacing: "-0.5px" }}>{profileUser.fullname}</h1>
-            <p style={{ fontSize: isMobile ? "0.9rem" : "1rem", color: textColor, margin: "0 0 12px 0", fontWeight: 500 }}>{profileUser.headline || "Write a headline to describe yourself."}</p>
+            <p style={{ fontSize: isMobile ? "0.9rem" : "1rem", color: textColor, margin: "0 0 12px 0", fontWeight: 500 }}>{profileUser.headline || "Software Engineer"}</p>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? "12px" : "20px", fontSize: "0.85rem", color: mutedText, marginBottom: "16px", alignItems: "center" }}>
               <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <MapPin size={14} /> {profileUser.location || "Earth"}
+                <MapPin size={14} /> {profileUser.location || "Dubai"}
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <Calendar size={14} /> Joined {profileUser.createdAt ? new Date(profileUser.createdAt).getFullYear() : "Writespace"}
+                <Calendar size={14} /> Joined {profileUser.createdAt ? new Date(profileUser.createdAt).getFullYear() : "2026"}
               </span>
             </div>
 
@@ -229,6 +298,7 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
+      {/* Tabs */}
       <div style={{ display: "flex", borderBottom: `1px solid ${borderColor}`, marginBottom: "20px", overflowX: "auto", scrollbarWidth: "none" }}>
         <button onClick={() => setActiveTab("ALL")} style={{ flex: isMobile ? "none" : 1, minWidth: isMobile ? "120px" : "auto", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "14px 0", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem", color: activeTab === "ALL" ? accentColor : mutedText, borderBottom: activeTab === "ALL" ? `3px solid ${accentColor}` : "3px solid transparent", transition: "all 0.2s ease" }}>
           <FileText size={18} /> All Posts
@@ -238,9 +308,32 @@ const Profile: React.FC = () => {
         </button>
       </div>
 
+      {/* Feed */}
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {displayedPosts.length > 0 ? (
-          displayedPosts.map((post) => <PostComponent key={post.id} post={post} />)
+          <>
+            {/* 🔥 TYPE SAFE CAST: Explicitly cast through unknown to satisfy TS without any */}
+            {displayedPosts.map((post) => <PostComponent key={post.id} post={post as unknown as ExtendedPost} />)}
+            
+            {/* Background loader while fetching next cursor payload */}
+            {isFetchingMore && (
+              <div style={{ display: "flex", justifyContent: "center", padding: "1rem" }}>
+                <Loader2 size={24} className="animate-spin" color={accentColor} />
+              </div>
+            )}
+
+            {/* The Invisible Trigger Div for Intersection Observer */}
+            {!isFetchingMore && hasMore && (
+              <div ref={lastPostElementRef} style={{ height: "20px" }} />
+            )}
+
+            {/* End of feed message */}
+            {!hasMore && displayedPosts.length > 5 && (
+              <div style={{ textAlign: "center", color: mutedText, padding: "2rem", fontSize: "0.9rem" }}>
+                You've reached the end of {profileUser.fullname}'s posts.
+              </div>
+            )}
+          </>
         ) : (
           <div style={{ textAlign: "center", padding: "4rem 2rem", backgroundColor: bgCard, borderRadius: "12px", border: `1px solid ${borderColor}` }}>
             <div style={{ width: "64px", height: "64px", backgroundColor: isDark ? "#334155" : "#e2e8f0", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px auto" }}>
@@ -251,6 +344,7 @@ const Profile: React.FC = () => {
         )}
       </div>
 
+      {/* Edit Profile Modal */}
       {isEditModalOpen && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(4px)", animation: "fadeIn 0.2s" }}>
           <div style={{ width: "100%", maxWidth: "550px", backgroundColor: bgCard, borderRadius: "16px", border: `1px solid ${borderColor}`, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
@@ -265,8 +359,12 @@ const Profile: React.FC = () => {
                 <input type="text" value={editForm.fullname} onChange={(e) => setEditForm({ ...editForm, fullname: e.target.value })} style={{ width: "100%", padding: "10px", backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "#f8fafc", border: `1px solid ${borderColor}`, borderRadius: "8px", color: textColor, outline: "none" }} />
               </div>
               <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: textColor, marginBottom: "6px" }}>Headline</label>
+                <input type="text" value={editForm.headline} onChange={(e) => setEditForm({ ...editForm, headline: e.target.value })} placeholder="Software Engineer @ Google" style={{ width: "100%", padding: "10px", backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "#f8fafc", border: `1px solid ${borderColor}`, borderRadius: "8px", color: textColor, outline: "none" }} />
+              </div>
+              <div>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: textColor, marginBottom: "6px" }}>Location</label>
-                <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} placeholder="e.g. San Francisco, CA" style={{ width: "100%", padding: "10px", backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "#f8fafc", border: `1px solid ${borderColor}`, borderRadius: "8px", color: textColor, outline: "none" }} />
+                <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} placeholder="e.g. Dubai" style={{ width: "100%", padding: "10px", backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "#f8fafc", border: `1px solid ${borderColor}`, borderRadius: "8px", color: textColor, outline: "none" }} />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: textColor, marginBottom: "6px" }}>Bio</label>

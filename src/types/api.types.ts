@@ -71,7 +71,6 @@ export interface Post {
   media?: string[] | null;
   codeSnippets?: CodeSnippet[] | null; // Added codeSnippets
   coverImageUrl?: string | null;
-  coverImageAltText?: string | null;
   tags?: string[] | null;
   authorId: string;
   
@@ -79,6 +78,7 @@ export interface Post {
   author: {
     id: string;
     username: string;
+    fullname: string;
     profileImageUrl?: string | null;
   };
   isLikedByMe: boolean; // Crucial for Optimistic UI
@@ -104,14 +104,30 @@ export interface CreatePostPayload {
 
 export interface CommentData {
   id: string;
-  authorId: string;
-  authorName: string;
-  authorHeadline: string;
   content: string;
-  likes: number;
-  timeAgo: string;
-  isLikedByMe?: boolean;
-  replies?: CommentData[];
+  parentCommentId: string | null;
+  likeCount: number;
+  replyCount: number;
+  isEdited: boolean;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    id: string;
+    username: string;
+    fullname: string;
+    profileImageUrl: string | null;
+  };
+  isLikedByMe: boolean;
+}
+
+export interface PaginatedCommentsResponse {
+  comments: CommentData[];
+  nextCursor: string | null;
+}
+
+export interface PaginatedRepliesResponse {
+  replies: CommentData[];
+  nextCursor: string | null;
 }
 
 export interface ResetPasswordPayload {

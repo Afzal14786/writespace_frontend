@@ -10,7 +10,6 @@ import PostComponent from "../../components/home/PostComponent";
 import type { Post } from "../../types/api.types";
 import { PostsAPI } from "../../api/posts.api"; 
 
-import { MOCK_POSTS } from "../../data/mockPosts";
 
 type SortOption = "Recent" | "Top" | "Discussed";
 const SORT_OPTIONS: SortOption[] = ["Recent", "Top", "Discussed"];
@@ -27,7 +26,7 @@ const HomePage: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>(() => {
     try {
       const cachedPosts = localStorage.getItem("feedCache");
-      return cachedPosts ? JSON.parse(cachedPosts) : [];
+      return cachedPosts ? JSON.parse(cachedPosts) as Post[] : [];
     } catch {
       return [];
     }
@@ -80,8 +79,9 @@ const HomePage: React.FC = () => {
       try {
         if (!cursor && posts.length === 0) setIsLoading(true);
         
-        // Pass the cursor string to the API
-        const feedResponse = await PostsAPI.getFeed(sortBy.toLowerCase(), cursor);
+        // 🔥 Live Database Fetch
+        // Temporarily ignoring 'sortBy' since the backend only supports strict chronological cursor pagination currently.
+        const feedResponse = await PostsAPI.getPosts(cursor || undefined);
         
         if (isMounted) {
           const newPosts = feedResponse.posts || [];
@@ -110,13 +110,12 @@ const HomePage: React.FC = () => {
              setCursor(nextCursor);
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         if (isMounted) {
-          console.error("Error fetching feed, falling back to mock data:", error);
-          if (!cursor) setPosts(MOCK_POSTS);
+          console.error("Error fetching live feed:", error);
           
           if (!toastTriggered.current) {
-            toast.error("Failed to load real posts. Showing test data.");
+            toast.error("Failed to load feed. Check your connection.");
             toastTriggered.current = true;
           }
         }

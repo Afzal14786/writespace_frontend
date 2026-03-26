@@ -1,5 +1,5 @@
 import api from "./api.index";
-import type { Post, CreatePostPayload } from "../types/api.types";
+import type { Post } from "../types/api.types";
 
 interface BackendResponse<T> {
   success: boolean;
@@ -17,13 +17,11 @@ export interface PaginatedPosts {
 }
 
 export const PostsAPI = {
-  getFeed: async (sort: string = "recent", cursor: string | null = null): Promise<PaginatedPosts> => {
-    const params: Record<string, string | number> = { sort, limit: 20 };
+  getPosts: async (cursor?: string, limit: number = 20, authorId?: string): Promise<PaginatedPosts> => {
+    const params: Record<string, string | number> = { limit };
     
-    // Only attach the cursor if it exists (i.e., not the first load)
-    if (cursor) {
-      params.cursor = cursor;
-    }
+    if (cursor) params.cursor = cursor;
+    if (authorId) params.authorId = authorId;
 
     const response = await api.get<BackendResponse<PaginatedPosts>>(`/posts`, { params });
     return response.data.data;
@@ -34,37 +32,11 @@ export const PostsAPI = {
     return response.data.data;
   },
 
-  createPost: async (payload: CreatePostPayload): Promise<Post> => {
-    if (payload.images && payload.images.length > 0) {
-      const formData = new FormData();
-      formData.append("title", payload.title);
-      formData.append("content", payload.content);
-      formData.append("isPublished", "true");
-      formData.append("banner", payload.images[0]); 
-      
-      if (payload.codeSnippets && payload.codeSnippets.length > 0) {
-        formData.append("codeSnippets", JSON.stringify(payload.codeSnippets));
-      }
-
-      if (payload.tags && payload.tags.length > 0) {
-        formData.append("tags", JSON.stringify(payload.tags));
-      }
-
-      const response = await api.post<BackendResponse<Post>>("/posts", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      return response.data.data;
-    } else {
-      const jsonPayload = {
-        title: payload.title,
-        content: payload.content,
-        codeSnippets: payload.codeSnippets,
-        tags: payload.tags,
-        isPublished: true
-      };
-      const response = await api.post<BackendResponse<Post>>("/posts", jsonPayload);
-      return response.data.data;
-    }
+  createPost: async (formData: FormData): Promise<Post> => {
+    const response = await api.post<BackendResponse<Post>>("/posts", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data.data;
   },
 
   likePost: async (id: string): Promise<{ status: string; likesCount: number }> => {
@@ -72,8 +44,10 @@ export const PostsAPI = {
     return response.data.data;
   },
 
-  updatePost: async (postId: string, payload: Partial<CreatePostPayload>): Promise<Post> => {
-    const response = await api.put<BackendResponse<Post>>(`/posts/${postId}`, payload);
+  updatePost: async (postId: string, formData: FormData): Promise<Post> => {
+    const response = await api.put<BackendResponse<Post>>(`/posts/${postId}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return response.data.data;
   },
 

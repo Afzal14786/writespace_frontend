@@ -1,15 +1,13 @@
 import React, { useState, useEffect, type KeyboardEvent } from "react";
-// 🔥 RESTORED IMPORTS: Added Bold, Italic, and LinkIcon back
-import { User, Image as ImageIcon, CodeXml, X, Send, CheckCircle, Loader2, Hash, Bold, Italic, Link as LinkIcon } from "lucide-react";
+import { User, Image as ImageIcon, CodeXml, X, Send, CheckCircle, Loader2, Hash, Bold, Italic, Link as LinkIcon, Save } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 import { AxiosError } from "axios";
 import type { ApiError } from "../../types/ApiError";
-import type { Post, CreatePostPayload } from "../../types/api.types";
+import type { Post } from "../../types/api.types";
 
 import { motion, AnimatePresence } from "framer-motion";
-
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -30,6 +28,9 @@ import { PostsAPI } from "../../api/posts.api";
 
 interface CreatePostEditorProps { 
   onPostCreated?: (newPost: Post) => void; 
+  editPost?: Post; 
+  onCloseEdit?: () => void;
+  onPostUpdated?: (updatedPost: Post) => void;
 }
 
 interface DraftState { 
@@ -39,22 +40,32 @@ interface DraftState {
   codeSnippets: { id: string; language: string; code: string }[]; 
 }
 
-const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) => {
+const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated, editPost, onCloseEdit, onPostUpdated }) => {
   const { theme } = useTheme();
   const { user: authUser } = useAuth();
   const isDark = theme === "dark";
 
-  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const isEditMode = !!editPost;
+
+  const [isExpanded, setIsExpanded] = useState<boolean>(isEditMode);
   const [isDraftLoaded, setIsDraftLoaded] = useState<boolean>(false);
   const [draftStatus, setDraftStatus] = useState<"Saving..." | "Saved" | "">("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   
-  const [title, setTitle] = useState<string>("");
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
-  const [codeSnippets, setCodeSnippets] = useState<{ id: string; language: string; code: string }[]>([]);
+  const [title, setTitle] = useState<string>(editPost?.title || "");
   
-  const [tags, setTags] = useState<string[]>([]);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
+  const [existingMedia, setExistingMedia] = useState<string[]>(editPost?.media || []);
+  
+  const initialSnippets = (editPost?.codeSnippets || []).map(s => ({
+    id: Math.random().toString(36).substr(2, 9),
+    language: s.language,
+    code: s.code
+  }));
+  const [codeSnippets, setCodeSnippets] = useState<{ id: string; language: string; code: string }[]>(initialSnippets);
+  
+  const [tags, setTags] = useState<string[]>(editPost?.tags || []);
   const [tagInput, setTagInput] = useState<string>("");
 
   const cardBg = isDark ? "#1e293b" : "#ffffff";
@@ -71,15 +82,12 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
       Link.configure({ openOnClick: false, HTMLAttributes: { style: `color: ${linkColor}; font-weight: bold; text-decoration: underline; cursor: pointer;` } }),
       Placeholder.configure({ placeholder: 'Share your knowledge, code, or ideas...' }),
     ],
-    content: '',
+    content: editPost?.content || '', 
     editorProps: { attributes: { class: 'focus:outline-none min-h-[120px]', style: `color: ${textColor}; min-height: 120px; outline: none; font-size: 1rem; line-height: 1.6;` } },
   });
 
-  const currentHtml = editor?.getHTML() || "";
-  const currentText = editor?.getText() || "";
-
   useEffect(() => {
-    if (editor && !isDraftLoaded) {
+    if (editor && !isDraftLoaded && !isEditMode) {
       const savedDraft = localStorage.getItem("writespace_draft");
       if (savedDraft) {
         try {
@@ -93,20 +101,26 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
             setDraftStatus("Saved");
           }
         } catch (error: unknown) {
-           console.error("Failed to parse draft", error);
+          console.error("Failed to parse draft", error);
         }
       }
       setIsDraftLoaded(true);
+    } else if (isEditMode) {
+      setIsDraftLoaded(true); 
     }
-  }, [editor, isDraftLoaded]);
+  }, [editor, isDraftLoaded, isEditMode]);
 
   useEffect(() => {
-    if (!isExpanded || !isDraftLoaded) return; 
+    if (!isExpanded || !isDraftLoaded || isEditMode) return; 
     
-    if (title.trim() || currentText.trim() || codeSnippets.length > 0 || tags.length > 0) {
+    // Safely query the editor for drafts
+    const liveHtml = editor?.getHTML() || "";
+    const liveText = editor?.getText() || "";
+
+    if (title.trim() || liveText.trim() || codeSnippets.length > 0 || tags.length > 0) {
       setDraftStatus("Saving...");
       const saveTimer = setTimeout(() => {
-        localStorage.setItem("writespace_draft", JSON.stringify({ title, content: currentHtml, tags, codeSnippets }));
+        localStorage.setItem("writespace_draft", JSON.stringify({ title, content: liveHtml, tags, codeSnippets }));
         setDraftStatus("Saved");
       }, 1000);
       return () => clearTimeout(saveTimer);
@@ -114,7 +128,7 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
       localStorage.removeItem("writespace_draft");
       setDraftStatus("");
     }
-  }, [title, currentHtml, currentText, tags, codeSnippets, isExpanded, isDraftLoaded]);
+  }, [title, tags, codeSnippets, isExpanded, isDraftLoaded, isEditMode, editor]);
 
   useEffect(() => {
     document.body.style.overflow = isExpanded ? "hidden" : "unset";
@@ -126,8 +140,12 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
     setTitle("");
     setTags([]);
     setTagInput("");
-    setMediaFile(null); 
-    setMediaPreview(null);
+    
+    mediaPreviews.forEach(url => URL.revokeObjectURL(url));
+    setMediaFiles([]); 
+    setMediaPreviews([]);
+    setExistingMedia([]);
+    
     setCodeSnippets([]); 
     editor?.commands.setContent(""); 
     setDraftStatus(""); 
@@ -135,7 +153,13 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
   };
 
   const handleDiscard = () => {
-    if (title.trim() || currentText.trim() || mediaFile !== null || codeSnippets.length > 0 || tags.length > 0) {
+    if (isEditMode) {
+      if (onCloseEdit) onCloseEdit();
+      return;
+    }
+
+    const liveText = editor?.getText() || "";
+    if (title.trim() || liveText.trim() || mediaFiles.length > 0 || codeSnippets.length > 0 || tags.length > 0) {
       if (!window.confirm("Discard draft?")) return;
     }
     resetForm();
@@ -161,29 +185,55 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
   };
 
   const handleSubmit = async () => {
-    if (title.trim().length < 5) return toast.error("Title must be at least 5 characters.");
-    if (currentText.trim().length < 10 && codeSnippets.length === 0 && mediaFile === null) {
+    // 🔥 FIX: Query the editor directly at the exact moment of submission
+    const finalHtml = editor?.getHTML() || "";
+    const finalText = editor?.getText() || "";
+    const finalTitle = title.trim();
+
+    if (finalTitle.length < 5) return toast.error("Title must be at least 5 characters.");
+    if (finalText.trim().length < 10 && codeSnippets.length === 0 && mediaFiles.length === 0 && existingMedia.length === 0) {
       return toast.error("Content must be at least 10 characters or include media/code.");
     }
     
     setIsSubmitting(true);
     try {
-      const payload = {
-        title: title.trim(),
-        content: currentHtml,
-        images: mediaFile ? [mediaFile] : [],
-        codeSnippets: codeSnippets.map(({ language, code }) => ({ language, code })),
-        tags: tags 
-      } as CreatePostPayload & { tags: string[] }; 
+      const formData = new FormData();
+      formData.append("title", finalTitle);
+      formData.append("content", finalHtml); // 🔥 Now guaranteed to have fresh text!
+      formData.append("isPublished", "true"); 
+      
+      if (tags.length > 0) {
+        formData.append("tags", JSON.stringify(tags));
+      }
 
-      const newPost = await PostsAPI.createPost(payload);
+      if (codeSnippets.length > 0) {
+        const cleanSnippets = codeSnippets.map(({ language, code }) => ({ language, code }));
+        formData.append("codeSnippets", JSON.stringify(cleanSnippets));
+      }
 
-      toast.success("Post published successfully!");
-      resetForm();
-      if (onPostCreated) onPostCreated(newPost);
+      if (existingMedia.length > 0) {
+        existingMedia.forEach(url => formData.append("existingMedia", url));
+      }
+
+      if (mediaFiles.length > 0) {
+        mediaFiles.forEach(file => formData.append("media", file)); 
+      }
+
+      if (isEditMode && editPost) {
+        const updatedPost = await PostsAPI.updatePost(editPost.id, formData);
+        toast.success("Post updated successfully!");
+        if (onPostUpdated) onPostUpdated(updatedPost);
+        if (onCloseEdit) onCloseEdit();
+      } else {
+        const newPost = await PostsAPI.createPost(formData);
+        toast.success("Post published successfully!");
+        resetForm();
+        if (onPostCreated) onPostCreated(newPost);
+      }
+
     } catch (error: unknown) {
       const axiosError = error as AxiosError<ApiError>;
-      toast.error(axiosError.response?.data?.message || "Failed to publish post.");
+      toast.error(axiosError.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'publish'} post.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -191,14 +241,31 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
 
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      setMediaFile(file);
-      setMediaPreview(URL.createObjectURL(file));
+      const newFiles = Array.from(e.target.files);
+      
+      if (mediaFiles.length + existingMedia.length + newFiles.length > 4) {
+        toast.warning("You can only attach a maximum of 4 images per post.");
+        return;
+      }
+
+      const newPreviews = newFiles.map(file => URL.createObjectURL(file));
+      setMediaFiles(prev => [...prev, ...newFiles]);
+      setMediaPreviews(prev => [...prev, ...newPreviews]);
     }
   };
 
+  const removeNewMedia = (indexToRemove: number) => {
+    URL.revokeObjectURL(mediaPreviews[indexToRemove]); 
+    setMediaFiles(prev => prev.filter((_, i) => i !== indexToRemove));
+    setMediaPreviews(prev => prev.filter((_, i) => i !== indexToRemove));
+  };
+
+  const removeExistingMedia = (indexToRemove: number) => {
+    setExistingMedia(prev => prev.filter((_, i) => i !== indexToRemove));
+  };
+
   const getLanguageExtension = (lang: string) => {
-    switch (lang) { 
+    switch (lang.toLowerCase()) { 
       case "python": return [python()]; 
       case "typescript": return [javascript({ typescript: true })]; 
       case "java": return [java()]; 
@@ -210,11 +277,9 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
     }
   };
 
-  const isPostEmpty = !title.trim() && !currentText.trim() && mediaFile === null && codeSnippets.length === 0;
-
   return (
     <>
-      {!isExpanded && (
+      {!isExpanded && !isEditMode && (
         <div style={{ backgroundColor: cardBg, borderRadius: "12px", border: `1px solid ${borderColor}`, padding: "1rem", boxShadow: isDark ? "0 4px 6px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.05)" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <div style={{ width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0, backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
@@ -245,7 +310,9 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     <span style={{ fontSize: "0.95rem", fontWeight: 600, color: textColor }}>{authUser?.fullname || "User"}</span>
-                    <span style={{ fontSize: "0.7rem", color: draftStatus === "Saved" ? "#10b981" : mutedText, display: "flex", alignItems: "center", gap: "4px" }}>{draftStatus === "Saved" && <CheckCircle size={10} />}{draftStatus || "Draft"}</span>
+                    <span style={{ fontSize: "0.7rem", color: isEditMode ? accentColor : (draftStatus === "Saved" ? "#10b981" : mutedText), display: "flex", alignItems: "center", gap: "4px" }}>
+                      {isEditMode ? "Editing Post..." : (draftStatus === "Saved" ? <><CheckCircle size={10} />Saved</> : draftStatus || "Draft")}
+                    </span>
                   </div>
                 </div>
                 <button onClick={handleDiscard} disabled={isSubmitting} style={{ background: "none", border: "none", color: mutedText, cursor: "pointer" }}><X size={22} /></button>
@@ -273,7 +340,7 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
                         value={snippet.code} 
                         height="auto" 
                         minHeight="80px" 
-                        maxHeight="300px" // 🔥 FIX: Prevents infinite expansion and forces a scrollbar
+                        maxHeight="300px" 
                         theme={isDark ? vscodeDark : githubLight} 
                         extensions={getLanguageExtension(snippet.language)} 
                         onChange={(value) => setCodeSnippets(codeSnippets.map(s => s.id === snippet.id ? { ...s, code: value } : s))} 
@@ -282,10 +349,25 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
                     </div>
                   ))}
 
-                  {mediaPreview && (
-                    <div style={{ position: "relative", marginTop: "16px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${borderColor}` }}>
-                      <img src={mediaPreview} alt="preview" style={{ width: "100%", maxHeight: "300px", objectFit: "contain", backgroundColor: isDark ? "#000" : "#f1f5f9" }} />
-                      <button onClick={() => { setMediaPreview(null); setMediaFile(null); }} style={{ position: "absolute", top: "8px", right: "8px", background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><X size={14} /></button>
+                  {(existingMedia.length > 0 || mediaPreviews.length > 0) && (
+                    <div style={{ display: "flex", gap: "10px", marginTop: "16px", overflowX: "auto", paddingBottom: "8px" }}>
+                      
+                      {existingMedia.map((url, idx) => {
+                        const imgSrc = url.startsWith('/') ? `http://localhost:8000${url}` : url;
+                        return (
+                          <div key={`existing-${idx}`} style={{ position: "relative", flexShrink: 0, width: "120px", height: "120px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${borderColor}` }}>
+                            <img src={imgSrc} alt="existing media" style={{ width: "100%", height: "100%", objectFit: "cover", backgroundColor: isDark ? "#000" : "#f1f5f9" }} />
+                            <button onClick={() => removeExistingMedia(idx)} style={{ position: "absolute", top: "4px", right: "4px", background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: "20px", height: "20px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><X size={12} /></button>
+                          </div>
+                        )
+                      })}
+
+                      {mediaPreviews.map((preview, idx) => (
+                        <div key={`new-${idx}`} style={{ position: "relative", flexShrink: 0, width: "120px", height: "120px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${borderColor}` }}>
+                          <img src={preview} alt={`preview-${idx}`} style={{ width: "100%", height: "100%", objectFit: "cover", backgroundColor: isDark ? "#000" : "#f1f5f9" }} />
+                          <button onClick={() => removeNewMedia(idx)} style={{ position: "absolute", top: "4px", right: "4px", background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: "20px", height: "20px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><X size={12} /></button>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -313,7 +395,6 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
 
               <div style={{ padding: "1rem", borderTop: `1px solid ${borderColor}`, display: "flex", justifyContent: "space-between" }}>
                 
-                {/* 🔥 FIX: Restored the Rich Text Toolbar Icons */}
                 <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
                   <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} style={{ background: "none", border: "none", color: editor?.isActive('bold') ? accentColor : mutedText, cursor: "pointer" }}><Bold size={18} /></button>
                   <button type="button" onClick={() => editor?.chain().focus().toggleItalic().run()} style={{ background: "none", border: "none", color: editor?.isActive('italic') ? accentColor : mutedText, cursor: "pointer" }}><Italic size={18} /></button>
@@ -321,13 +402,13 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated }) =>
                   
                   <div style={{ width: "1px", height: "20px", backgroundColor: borderColor, margin: "0 4px" }} />
                   
-                  <input type="file" id="modal-image-upload" accept="image/*" style={{ display: "none" }} onChange={handleMediaUpload} />
+                  <input type="file" id="modal-image-upload" accept="image/*" multiple style={{ display: "none" }} onChange={handleMediaUpload} />
                   <label htmlFor="modal-image-upload" style={{ cursor: "pointer", color: mutedText }}><ImageIcon size={20} /></label>
                   <button type="button" onClick={() => setCodeSnippets([...codeSnippets, { id: Date.now().toString(), language: "typescript", code: "" }])} style={{ background: "none", border: "none", color: mutedText, cursor: "pointer" }}><CodeXml size={20} /></button>
                 </div>
 
-                <button onClick={handleSubmit} disabled={isPostEmpty || isSubmitting} style={{ backgroundColor: accentColor, color: "#fff", border: "none", padding: "8px 24px", borderRadius: "24px", fontWeight: 600, cursor: isPostEmpty || isSubmitting ? "not-allowed" : "pointer", opacity: isPostEmpty || isSubmitting ? 0.5 : 1, display: "flex", alignItems: "center", gap: "8px" }}>
-                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : "Publish"} <Send size={16} />
+                <button onClick={handleSubmit} disabled={isSubmitting} style={{ backgroundColor: accentColor, color: "#fff", border: "none", padding: "8px 24px", borderRadius: "24px", fontWeight: 600, cursor: isSubmitting ? "not-allowed" : "pointer", opacity: isSubmitting ? 0.5 : 1, display: "flex", alignItems: "center", gap: "8px" }}>
+                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : (isEditMode ? "Save Changes" : "Publish")} {isEditMode ? <Save size={16} /> : <Send size={16} />}
                 </button>
               </div>
 
