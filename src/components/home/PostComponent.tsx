@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Post } from "../../types/api.types";
 import { InteractionsAPI } from "../../api/interactions.api";
 import { PostsAPI } from "../../api/posts.api";
+import { UsersAPI } from "../../api/users.api"; // 🔥 FIX: Imported UsersAPI
 import CommentSection from "./CommentSection";
 import CreatePostEditor from "./CreatePostEditor"; 
 
@@ -29,6 +30,7 @@ interface ExtendedAuthor {
   fullname?: string;
   profileImageUrl?: string | null;
   headline?: string;
+  isFollowingByMe?: boolean; // 🔥 FIX: Added strictly to type
 }
 
 interface ExtendedPost extends Omit<Post, 'author'> {
@@ -66,7 +68,8 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
     setCurrentPost(post);
   }, [post]);
 
-  const [isFollowing, setIsFollowing] = useState<boolean>(false); 
+  // 🔥 FIX: Hydrate 'isFollowing' correctly from the backend data!
+  const [isFollowing, setIsFollowing] = useState<boolean>(currentPost.author?.isFollowingByMe || false); 
   const [isLiked, setIsLiked] = useState<boolean>(currentPost.isLikedByMe || currentPost.isLiked || false);
   const [likesCount, setLikesCount] = useState<number>(currentPost.likeCount || 0); 
   const [sharesCount, setSharesCount] = useState<number>(currentPost.shareCount || 0); 
@@ -76,7 +79,9 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
     const nextLikeCount = currentPost.likeCount || 0;
     setIsLiked((prev) => (prev !== nextLikedState ? nextLikedState : prev));
     setLikesCount((prev) => (prev !== nextLikeCount ? nextLikeCount : prev));
-  }, [currentPost.isLikedByMe, currentPost.isLiked, currentPost.likeCount]);
+    // 🔥 Ensure follow state stays synced if parent post data changes
+    setIsFollowing(currentPost.author?.isFollowingByMe || false);
+  }, [currentPost.isLikedByMe, currentPost.isLiked, currentPost.likeCount, currentPost.author?.isFollowingByMe]);
 
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState<boolean>(false);
@@ -116,10 +121,28 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleFollowToggle = () => {
-    setIsFollowing(!isFollowing);
-    const displayName = currentPost.author?.fullname || currentPost.author?.username || "User";
-    toast.success(isFollowing ? `Unfollowed ${displayName}` : `Following ${displayName}`);
+  // 🔥 FIX: Actual Real API Follow Toggle
+  const handleFollowToggle = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!authUser) return toast.error("Please log in to follow users.");
+
+    // Optimistic UI update
+    const previousState = isFollowing;
+    setIsFollowing(!previousState);
+
+    try {
+      await UsersAPI.toggleFollow(currentPost.author.id);
+      if (!previousState) {
+        toast.success(`Following ${currentPost.author.fullname || currentPost.author.username}`);
+      }
+    } catch (error) {
+      // Revert if API fails
+      setIsFollowing(previousState);
+      toast.error("Failed to update follow status.");
+      console.error(error); // Satisfy unused variable rules safely
+    }
   };
 
   const executeLike = async (forcedLike: boolean = false) => {
@@ -227,9 +250,10 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
 
   if (isDeleted) return null;
 
+  // 🔥 FIX: LinkedIn style routing for your own posts!
+  const profileLink = isOwnPost ? "/profile/me" : `/profile/${currentPost.author?.username}`;
   const shareUrl = `${window.location.origin}/post/${currentPost.id}`;
   
-  // 🔥 FIX: Strict type narrowing for the code snippets array without using any
   const snippets: ParsedCodeSnippet[] = (currentPost.codeSnippets || []).map((s: unknown) => {
     if (typeof s === 'object' && s !== null) {
       const record = s as Record<string, unknown>;
@@ -243,13 +267,13 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
 
   return (
     <>
-      <div style={{ backgroundColor: cardBg, borderRadius: "12px", border: `1px solid ${borderColor}`, color: textColor, padding: isMobile ? "16px" : "20px", marginBottom: "16px", boxShadow: isDark ? "0 4px 6px rgba(0,0,0,0.1)" : "0 1px 3px rgba(0,0,0,0.05)", fontFamily: "Inter, sans-serif" }}>
+      <div style={{ backgroundColor: cardBg, borderRadius: "12px", border: `1px solid ${borderColor}`, color: textColor, padding: isMobile ? "16px" : "20px", marginBottom: "16px", boxShadow: isDark ? "0 4px 6px rgba(0,0,0,0.1)" : "0 1px 3px rgba(0,0,0,0.05)", fontFamily: "Inter, sans-serif", width: "100%" }}>
         
         {/* HEADER AREA */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
           <div style={{ display: "flex", gap: "12px", minWidth: 0, flex: 1 }}>
             
-            <Link to={`/profile/${currentPost.author?.username}`} style={{ textDecoration: "none" }}>
+            <Link to={profileLink} style={{ textDecoration: "none" }}>
               <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
                 <img src={currentPost.author?.profileImageUrl || `https://ui-avatars.com/api/?name=${currentPost.author?.username || 'User'}&background=random`} alt={currentPost.author?.username || 'User'} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
@@ -258,22 +282,18 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, justifyContent: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                 
-                <Link to={`/profile/${currentPost.author?.username}`} style={{ textDecoration: "none", color: textColor, display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", cursor: "pointer" }}>
+                <Link to={profileLink} style={{ textDecoration: "none", color: textColor, display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", cursor: "pointer" }}>
                   <span style={{ fontWeight: 700, fontSize: "1rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {currentPost.author?.fullname || currentPost.author?.username || "Unknown User"}
                   </span>
-                  {currentPost.author?.fullname && (
-                    <span style={{ color: mutedText, fontSize: "0.85rem", fontWeight: 500 }}>
-                      (@{currentPost.author.username})
-                    </span>
-                  )}
                 </Link>
                 
-                {!isOwnPost && (
+                {/* 🔥 FIX: Hide button completely if following! */}
+                {!isOwnPost && !isFollowing && (
                   <>
                     <span style={{ color: mutedText, fontSize: "0.8rem" }}>•</span>
                     <button onClick={handleFollowToggle} style={{ background: "none", border: "none", color: primaryAction, fontWeight: 700, cursor: "pointer", fontSize: "0.9rem", padding: 0, display: "flex", alignItems: "center", gap: "4px" }}>
-                      {isFollowing ? "Following" : <><UserPlus size={14} /> Follow</>}
+                      <UserPlus size={14} /> Follow
                     </button>
                   </>
                 )}
@@ -315,7 +335,7 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
           </div>
         </div>
 
-        {/* POST BODY (Double Tap Area) */}
+        {/* POST BODY */}
         <div onClick={handleDoubleTap} style={{ position: "relative", cursor: "default" }}>
           
           <AnimatePresence>
@@ -357,7 +377,6 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
             {renderImageGrid(currentPost.media || [])}
           </div>
 
-          {/* Inline Read-Only Code Snippet Renderer */}
           {snippets && snippets.length > 0 && (
             <div style={{ pointerEvents: "auto", marginTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
               {snippets.map((snippet, index) => (
@@ -379,7 +398,6 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
             </div>
           )}
 
-          {/* TAGS */}
           {currentPost.tags && currentPost.tags.length > 0 && (
             <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap", zIndex: 1, position: "relative" }}>
                {currentPost.tags.map(tag => (

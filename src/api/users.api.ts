@@ -23,6 +23,9 @@ export interface UpdateProfilePayload {
     youtube?: string;
     instagram?: string;
     facebook?: string;
+    leetcode?: string;
+    codeforces?: string;
+    geeksforgeeks?: string;
   };
   profileImage?: File;
   bannerImage?: File;
@@ -54,13 +57,14 @@ export const UsersAPI = {
 
   updateProfile: async (userId: string, payload: UpdateProfilePayload): Promise<User> => {
     const formData = new FormData();
-    
+
     if (payload.personal_info) {
       formData.append("personal_info", JSON.stringify(payload.personal_info));
     }
     if (payload.social_links) {
       formData.append("social_links", JSON.stringify(payload.social_links));
     }
+    
     if (payload.profileImage) {
       formData.append("profileImage", payload.profileImage);
     }
@@ -68,13 +72,20 @@ export const UsersAPI = {
       formData.append("bannerImage", payload.bannerImage);
     }
 
-    const response = await api.put<BackendResponse<User>>(`/users/${userId}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
+    const response = await api.put(`/users/${userId}`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
     });
     return response.data.data;
   },
 
   deleteProfile: async (userId: string): Promise<void> => {
     await api.delete<BackendResponse<null>>(`/users/${userId}`);
+  },
+
+  toggleFollow: async (userId: string): Promise<{ status: "followed" | "unfollowed" }> => {
+    const response = await api.post(`/users/${userId}/follow`);
+    return response.data.data;
   }
 };

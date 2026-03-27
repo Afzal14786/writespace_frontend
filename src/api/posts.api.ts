@@ -16,14 +16,23 @@ export interface PaginatedPosts {
   };
 }
 
-export const PostsAPI = {
-  getPosts: async (cursor?: string, limit: number = 20, authorId?: string): Promise<PaginatedPosts> => {
-    const params: Record<string, string | number> = { limit };
-    
-    if (cursor) params.cursor = cursor;
-    if (authorId) params.authorId = authorId;
+export interface GetPostsParams {
+  cursor?: string;
+  limit?: number;
+  authorId?: string;
+}
 
-    const response = await api.get<BackendResponse<PaginatedPosts>>(`/posts`, { params });
+export const PostsAPI = {
+  getPosts: async (params?: GetPostsParams): Promise<PaginatedPosts> => {
+    const query = new URLSearchParams();
+    
+    if (params?.cursor) query.append("cursor", params.cursor);
+    if (params?.limit) query.append("limit", params.limit.toString());
+    if (params?.authorId) query.append("authorId", params.authorId);
+
+    const url = `/posts?${query.toString()}`;
+    const response = await api.get(url);
+    
     return response.data.data;
   },
 

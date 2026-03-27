@@ -18,6 +18,9 @@ export interface User {
   github?: string;
   website?: string;
   linkedin?: string;
+  leetcode?: string;
+  codeforces?: string;
+  geeksforgeeks?: string;
   totalPosts?: number;
   totalReads?: number;
   totalFollowers?: number;
@@ -26,6 +29,7 @@ export interface User {
   role?: "user" | "admin";
   createdAt?: string;
   updatedAt?: string;
+  isFollowingByMe?: boolean;
 }
 
 export interface AuthResponse {
@@ -80,6 +84,7 @@ export interface Post {
     username: string;
     fullname: string;
     profileImageUrl?: string | null;
+    isFollowingByMe?: boolean;
   };
   isLikedByMe: boolean; // Crucial for Optimistic UI
 
