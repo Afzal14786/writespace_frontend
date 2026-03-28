@@ -9,6 +9,7 @@ import OAuthSuccess from "./pages/auth/OAuthSuccess";
 import Profile from "./components/users/Profile";
 import ProtectedLayout from "./components/layout/ProtectedLayout";
 import HomePage from "./pages/home/HomePage";
+import PostDetailPage from "./pages/home/PostDetailPage";
 
 // Context & Providers
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
@@ -84,6 +85,7 @@ const AppContent: React.FC = () => {
           <Route path="/home" element={<HomePage />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/:username" element={<Profile />} />
+          <Route path="/post/:postId" element={<PostDetailPage />} />
           
           {/* Placeholders for future routes */}
           <Route path="/messages" element={<div className="p-8 text-gray-900 dark:text-white">Messages</div>} />

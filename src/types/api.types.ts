@@ -139,3 +139,33 @@ export interface ResetPasswordPayload {
   token: string;
   password: string;
 }
+
+export type NotificationType = 
+  | "LIKE" 
+  | "COMMENT" 
+  | "FOLLOW" 
+  | "SHARE" 
+  | "WELCOME" 
+  | "SYSTEM";
+
+export interface NotificationActor {
+  id: string;
+  username: string;
+  fullname: string;
+  profileImageUrl: string | null;
+}
+
+export interface AppNotification {
+  id: number;
+  type: NotificationType;
+  message: string;
+  relatedId: string | null;
+  isRead: boolean;
+  createdAt: string;
+  actor: NotificationActor | null;
+}
+
+export interface GetNotificationsResponse {
+  notifications: AppNotification[];
+  unreadCount: number;
+}
