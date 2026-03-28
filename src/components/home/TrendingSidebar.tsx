@@ -1,5 +1,6 @@
 import React from "react";
 import { TrendingUp, MessageSquare, ChevronRight } from "lucide-react";
+import { toast } from "react-toastify";
 import { useTheme } from "../../context/ThemeContext";
 
 const TrendingSidebar: React.FC = () => {
@@ -21,6 +22,10 @@ const TrendingSidebar: React.FC = () => {
     { tag: "LeetCode_Daily", posts: "612 Discussions" }
   ];
 
+  const handleComingSoon = () => {
+    toast.info("Tranding topics fetures coming soon!", { theme: isDark ? "dark" : "light" });
+  };
+
   return (
     <aside style={{ 
       backgroundColor: cardBg,
@@ -40,7 +45,8 @@ const TrendingSidebar: React.FC = () => {
       <div style={{ display: "flex", flexDirection: "column" }}>
         {trendingTopics.map((item, idx) => (
           <div 
-            key={idx} 
+            key={idx}
+            onClick={handleComingSoon}
             style={{
               padding: "12px 16px",
               display: "flex", 
@@ -72,6 +78,7 @@ const TrendingSidebar: React.FC = () => {
       </div>
       
       <div 
+        onClick={handleComingSoon}
         style={{ padding: "12px 16px", borderTop: `1px solid ${borderColor}`, color: accentColor, fontSize: "0.85rem", fontWeight: "600", cursor: "pointer", transition: "background-color 0.2s" }}
         onMouseOver={(e) => e.currentTarget.style.backgroundColor = hoverBg} 
         onMouseOut={(e) => e.currentTarget.style.backgroundColor = "transparent"}

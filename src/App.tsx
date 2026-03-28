@@ -48,8 +48,8 @@ const AppContent: React.FC = () => {
   return (
     <>
       <ToastContainer 
-        position="bottom-right" 
-        autoClose={3000} 
+        position="top-center" 
+        autoClose={2000} 
         theme={theme === "dark" ? "dark" : "light"} 
       />
       

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { User, Bookmark, Settings, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "react-toastify";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { UsersAPI } from "../../api/users.api";
@@ -14,7 +15,6 @@ const ProfileSidebar: React.FC = () => {
   const [userData, setUserData] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Fetch fresh stats (totalPosts, totalFollowers) in the background
   useEffect(() => {
     let isMounted = true;
     const fetchFreshUserData = async () => {
@@ -37,15 +37,17 @@ const ProfileSidebar: React.FC = () => {
     return () => { isMounted = false; };
   }, []);
 
-  // Merge instant context user with fresh API user data
   const displayUser = userData || authUser;
 
-  // Dynamic colors based on theme
   const cardBg = isDark ? "#1e293b" : "#ffffff";
   const borderColor = isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)";
   const textColor = isDark ? "#f1f5f9" : "#0f172a";
   const mutedText = isDark ? "#94a3b8" : "#64748b";
-  const accentColor = "#6366f1"; // Indigo Brand Color
+  const accentColor = "#6366f1";
+
+  const handleComingSoon = () => {
+    toast.info("Saved Items feature coming!", { theme: isDark ? "dark" : "light" });
+  };
 
   const cardStyle: React.CSSProperties = {
     backgroundColor: cardBg,
@@ -95,11 +97,9 @@ const ProfileSidebar: React.FC = () => {
 
   return (
     <div style={cardStyle}>
-      {/* Cover Photo Area */}
       <div style={bannerStyle} />
       
       <div style={{ padding: "0 1rem 1rem 1rem", textAlign: "center", marginTop: "-30px" }}>
-        {/* Profile Avatar Container */}
         <Link to="/profile" style={{ display: "inline-block", textDecoration: "none" }}>
           <div style={{ 
             width: "64px", height: "64px", borderRadius: "50%", margin: "0 auto 10px auto",
@@ -119,7 +119,6 @@ const ProfileSidebar: React.FC = () => {
           </div>
         </Link>
         
-        {/* User Name and Tagline */}
         <Link to="/profile" style={{ textDecoration: "none", color: "inherit" }}>
           <h2 style={{ fontSize: "1.1rem", fontWeight: "600", margin: "0 0 4px 0", fontFamily: "Inter, sans-serif" }}
               onMouseOver={(e) => e.currentTarget.style.textDecoration = "underline"}
@@ -132,7 +131,6 @@ const ProfileSidebar: React.FC = () => {
           {displayUser?.headline || displayUser?.bio || "Add a headline in your profile settings to stand out."}
         </p>
         
-        {/* Stats Section */}
         <div style={{ 
           borderTop: `1px solid ${borderColor}`, paddingTop: "12px", 
           borderBottom: `1px solid ${borderColor}`, paddingBottom: "12px", 
@@ -152,12 +150,12 @@ const ProfileSidebar: React.FC = () => {
           </Link>
         </div>
 
-        {/* Quick Links Section */}
         <div style={{ paddingTop: "12px", display: "flex", flexDirection: "column", gap: "10px", textAlign: "left" }}>
-          <Link to="/saved" style={linkRowStyle} onMouseOver={(e) => e.currentTarget.style.color = textColor} onMouseOut={(e) => e.currentTarget.style.color = mutedText}>
+          {/* Changed Link to div and added onClick handler */}
+          <div onClick={handleComingSoon} style={linkRowStyle} onMouseOver={(e) => e.currentTarget.style.color = textColor} onMouseOut={(e) => e.currentTarget.style.color = mutedText}>
             <Bookmark size={16} />
             <span>Saved items</span>
-          </Link>
+          </div>
           <Link to="/settings" style={linkRowStyle} onMouseOver={(e) => e.currentTarget.style.color = textColor} onMouseOut={(e) => e.currentTarget.style.color = mutedText}>
             <Settings size={16} />
             <span>Profile Settings</span>

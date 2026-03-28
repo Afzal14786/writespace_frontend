@@ -1,4 +1,5 @@
 import React, { useState, useEffect, type KeyboardEvent } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { User, Image as ImageIcon, CodeXml, X, Send, CheckCircle, Loader2, Hash, Bold, Italic, Link as LinkIcon, Save } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -113,7 +114,6 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated, edit
   useEffect(() => {
     if (!isExpanded || !isDraftLoaded || isEditMode) return; 
     
-    // Safely query the editor for drafts
     const liveHtml = editor?.getHTML() || "";
     const liveText = editor?.getText() || "";
 
@@ -185,7 +185,6 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated, edit
   };
 
   const handleSubmit = async () => {
-    // 🔥 FIX: Query the editor directly at the exact moment of submission
     const finalHtml = editor?.getHTML() || "";
     const finalText = editor?.getText() || "";
     const finalTitle = title.trim();
@@ -199,7 +198,7 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated, edit
     try {
       const formData = new FormData();
       formData.append("title", finalTitle);
-      formData.append("content", finalHtml); // 🔥 Now guaranteed to have fresh text!
+      formData.append("content", finalHtml); 
       formData.append("isPublished", "true"); 
       
       if (tags.length > 0) {
@@ -282,9 +281,12 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated, edit
       {!isExpanded && !isEditMode && (
         <div style={{ backgroundColor: cardBg, borderRadius: "12px", border: `1px solid ${borderColor}`, padding: "1rem", boxShadow: isDark ? "0 4px 6px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.05)" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            <div style={{ width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0, backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-              {authUser?.profileImageUrl ? <img src={authUser.profileImageUrl} alt="You" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={20} color={mutedText} />}
-            </div>
+            {/* 🔥 NEW: Added RouterLink here so the user's avatar clicks to their profile */}
+            <RouterLink to={`/profile/${authUser?.username}`} style={{ textDecoration: "none" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0, backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: "pointer" }}>
+                {authUser?.profileImageUrl ? <img src={authUser.profileImageUrl} alt="You" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={20} color={mutedText} />}
+              </div>
+            </RouterLink>
             <button onClick={() => setIsExpanded(true)} style={{ flex: 1, padding: "10px 16px", borderRadius: "24px", textAlign: "left", border: `1px solid ${borderColor}`, backgroundColor: inputBg, color: mutedText, outline: "none", fontSize: "0.9rem", cursor: "pointer" }}>
               Start a post...
             </button>
@@ -304,17 +306,20 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated, edit
             >
               
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem", borderBottom: `1px solid ${borderColor}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div style={{ width: "36px", height: "36px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                    {authUser?.profileImageUrl ? <img src={authUser.profileImageUrl} alt="You" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={18} color={mutedText} />}
+                {/* 🔥 NEW: Added RouterLink here so the user's name and avatar click to their profile in the modal */}
+                <RouterLink to={`/profile/${authUser?.username}`} style={{ textDecoration: "none", color: "inherit" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
+                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      {authUser?.profileImageUrl ? <img src={authUser.profileImageUrl} alt="You" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={18} color={mutedText} />}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: "0.95rem", fontWeight: 600, color: textColor, transition: "text-decoration 0.2s" }} onMouseOver={(e) => e.currentTarget.style.textDecoration = "underline"} onMouseOut={(e) => e.currentTarget.style.textDecoration = "none"}>{authUser?.fullname || "User"}</span>
+                      <span style={{ fontSize: "0.7rem", color: isEditMode ? accentColor : (draftStatus === "Saved" ? "#10b981" : mutedText), display: "flex", alignItems: "center", gap: "4px" }}>
+                        {isEditMode ? "Editing Post..." : (draftStatus === "Saved" ? <><CheckCircle size={10} />Saved</> : draftStatus || "Draft")}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: "0.95rem", fontWeight: 600, color: textColor }}>{authUser?.fullname || "User"}</span>
-                    <span style={{ fontSize: "0.7rem", color: isEditMode ? accentColor : (draftStatus === "Saved" ? "#10b981" : mutedText), display: "flex", alignItems: "center", gap: "4px" }}>
-                      {isEditMode ? "Editing Post..." : (draftStatus === "Saved" ? <><CheckCircle size={10} />Saved</> : draftStatus || "Draft")}
-                    </span>
-                  </div>
-                </div>
+                </RouterLink>
                 <button onClick={handleDiscard} disabled={isSubmitting} style={{ background: "none", border: "none", color: mutedText, cursor: "pointer" }}><X size={22} /></button>
               </div>
 
