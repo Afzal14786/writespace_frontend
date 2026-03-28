@@ -27,7 +27,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onToggleForm, onForgotP
     setIsLoading(true);
     try {
       const response = await AuthAPI.login({ email, password });
-      loginState(response.user, response.accessToken, response.refreshToken);
+      loginState(response.user, response.accessToken);
       toast.success("Welcome back!");
       navigate('/home', { replace: true });
     } catch (error: unknown) {

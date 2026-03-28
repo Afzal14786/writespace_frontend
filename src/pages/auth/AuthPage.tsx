@@ -20,34 +20,34 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => {
   }, [initialMode]);
 
   return (
-    <div className="flex flex-col min-h-[100dvh] w-full bg-slate-900 text-slate-50 font-sans selection:bg-indigo-500/30 overflow-hidden">
+    <div className="flex flex-col min-h-screen w-full bg-slate-900 text-slate-50 font-sans selection:bg-indigo-500/30">
       
-      {/* Main Split Area (Takes all space above footer) */}
-      <div className="flex flex-1 w-full relative">
+      {/* Main Container - Flex Row on Desktop, Column on Mobile */}
+      <div className="flex flex-1 w-full flex-col lg:flex-row">
         
-        {/* Left side - Branding & Header Area (Hidden on Mobile) */}
-        <div className="hidden lg:flex lg:flex-col lg:w-1/2 h-full border-r border-slate-800/50">
+        {/* Left side - Branding (Hidden on Mobile) */}
+        <div className="hidden lg:flex lg:flex-col lg:w-1/2 border-r border-slate-800/50 min-h-screen relative z-20 bg-slate-900">
           <AuthBranding />
         </div>
 
-        {/* Right side - Form Area (Centered) */}
-        <div className="flex-1 flex flex-col relative h-full">
+        {/* Right side - Interactive Area */}
+        <div className="flex-1 flex flex-col relative min-h-screen">
           
           {/* Ambient Glows */}
-          <div className="absolute top-10 right-10 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-          <div className="absolute bottom-10 left-10 w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+          <div className="absolute top-10 right-10 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
+          <div className="absolute bottom-10 left-10 w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
 
-          {/* Mobile Header (Only visible on Mobile screens) */}
-          <div className="lg:hidden flex items-center justify-center gap-3 pt-8 pb-4 w-full shrink-0 relative z-10">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-lg text-white shadow-lg">
+          {/* Mobile Header */}
+          <div className="lg:hidden flex flex-col items-center justify-center gap-3 pt-12 pb-4 w-full shrink-0 relative z-10">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-xl text-white shadow-lg">
               W
             </div>
-            <span className="font-bold text-xl tracking-tight text-white">Writespace</span>
+            <span className="font-bold text-2xl tracking-tight text-white">Writespace</span>
           </div>
 
-          {/* Main Form Area (Mathematically centered) */}
-          <div className="flex-1 flex flex-col justify-center items-center w-full px-4 sm:px-8 py-6 relative z-10 overflow-y-auto">
-            <div className="w-full max-w-md bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-[2rem] p-8 sm:p-10 shadow-2xl">
+          {/* Form Area - Perfectly Centered */}
+          <div className="flex-1 flex flex-col justify-center items-center w-full px-4 sm:px-8 py-8 relative z-10">
+            <div className="w-full max-w-md bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-[2rem] p-8 sm:p-10 shadow-2xl transition-all duration-300">
               {mode === 'login' && <LoginComponent onToggleForm={() => setMode('register')} onForgotPassword={() => setMode('forgot')} />}
               {mode === 'register' && <RegisterComponent onToggleForm={() => setMode('login')} />}
               {mode === 'forgot' && <ForgotPasswordComponent onBackToLogin={() => setMode('login')} />}
@@ -55,14 +55,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => {
             </div>
           </div>
 
+          {/* Footer - Anchored to bottom of the right panel */}
+          <div className="w-full shrink-0 relative z-20 border-t border-slate-800/50 bg-slate-900/50 backdrop-blur-sm">
+            <Footer variant="auth" />
+          </div>
+
         </div>
       </div>
-
-      {/* Footer Area (Spans full width at the bottom) */}
-      <div className="w-full shrink-0 relative z-20 border-t border-slate-800/50 bg-slate-900">
-        <Footer variant="auth" />
-      </div>
-
     </div>
   );
 };
