@@ -10,6 +10,7 @@ import Profile from "./components/users/Profile";
 import ProtectedLayout from "./components/layout/ProtectedLayout";
 import HomePage from "./pages/home/HomePage";
 import PostDetailPage from "./pages/home/PostDetailPage";
+import SettingsPage from "./pages/settings/SettingsPage";
 
 // Context & Providers
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
@@ -25,13 +26,11 @@ interface RouteProps {
   children: React.ReactNode;
 }
 
-// Helper component to redirect authenticated users away from the login pages
 const PublicRoute: React.FC<RouteProps> = ({ children }) => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
   
   if (isLoadingAuth) {
     return (
-      // Replaced inline styles with Tailwind to support dynamic Light/Dark theme switching
       <div className="flex h-screen w-full items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
         <Loader2 size={40} className="animate-spin text-[#6366f1]" />
       </div>
@@ -90,6 +89,7 @@ const AppContent: React.FC = () => {
           {/* Placeholders for future routes */}
           <Route path="/messages" element={<div className="p-8 text-gray-900 dark:text-white">Messages</div>} />
           <Route path="/notifications" element={<div className="p-8 text-gray-900 dark:text-white">Notifications</div>} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
         {/* Fallback Route */}

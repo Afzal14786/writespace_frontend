@@ -169,3 +169,8 @@ export interface GetNotificationsResponse {
   notifications: AppNotification[];
   unreadCount: number;
 }
+
+export interface UpdatePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
