@@ -25,14 +25,12 @@ const RegisterComponent: React.FC<RegisterComponentProps> = ({ onToggleForm }) =
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  // Live Username State
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("IDLE");
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const { loginState } = useAuth();
   const navigate = useNavigate();
 
-  // Debounced Username Checker
   useEffect(() => {
     if (!username || username.length < 3) {
       setUsernameStatus("IDLE");
@@ -85,7 +83,7 @@ const RegisterComponent: React.FC<RegisterComponentProps> = ({ onToggleForm }) =
     setIsLoading(true);
     try {
       const response = await AuthAPI.verifyOtp({ email, otp });
-      loginState(response.user, response.accessToken, response.refreshToken);
+      loginState(response.user, response.accessToken);
       toast.success("Account created successfully!");
       navigate('/home', { replace: true });
     } catch (error: unknown) {
@@ -128,7 +126,6 @@ const RegisterComponent: React.FC<RegisterComponentProps> = ({ onToggleForm }) =
             <input type="text" required value={fullname} onChange={(e) => setFullname(e.target.value)} className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3.5 pl-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm" placeholder="Full Name" />
           </div>
           
-          {/* Live Username Input */}
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">@</span>
             <input 
@@ -149,7 +146,6 @@ const RegisterComponent: React.FC<RegisterComponentProps> = ({ onToggleForm }) =
               {usernameStatus === "UNAVAILABLE" && <XCircle size={16} className="text-red-500" />}
             </div>
             
-            {/* Suggestions Box */}
             {usernameStatus === "UNAVAILABLE" && suggestions.length > 0 && (
               <div className="absolute top-full left-0 mt-2 w-full p-2 bg-red-500/10 border border-red-500/20 rounded-lg z-20 backdrop-blur-md">
                 <p className="text-xs text-red-400 mb-2">Suggested:</p>

@@ -7,9 +7,9 @@ import ProfileSidebar from "../../components/home/ProfileSidebar";
 import TrendingSidebar from "../../components/home/TrendingSidebar";
 import CreatePostEditor from "../../components/home/CreatePostEditor";
 import PostComponent from "../../components/home/PostComponent";
+import Footer from "../../components/layout/Footer";
 import type { Post } from "../../types/api.types";
 import { PostsAPI } from "../../api/posts.api"; 
-
 
 type SortOption = "Recent" | "Top" | "Discussed";
 const SORT_OPTIONS: SortOption[] = ["Recent", "Top", "Discussed"];
@@ -22,7 +22,7 @@ const HomePage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>("Recent");
   const [isSortOpen, setIsSortOpen] = useState<boolean>(false);
   
-  // 1. SWR Instant Load: Initialize state directly from localStorage
+  // SWR Instant Load: Initialize state directly from localStorage
   const [posts, setPosts] = useState<Post[]>(() => {
     try {
       const cachedPosts = localStorage.getItem("feedCache");
@@ -34,9 +34,7 @@ const HomePage: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState<boolean>(posts.length === 0);
 
-  // ==========================================
-  // 2. INFINITE SCROLL: Cursor State Management
-  // ==========================================
+  // INFINITE SCROLL: Cursor State Management
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [isFetchingMore, setIsFetchingMore] = useState<boolean>(false);
@@ -50,7 +48,6 @@ const HomePage: React.FC = () => {
       if (observer.current) observer.current.disconnect();
 
       observer.current = new IntersectionObserver((entries) => {
-        // If bottom div intersects and we have a nextCursor, trigger fetch!
         if (entries[0].isIntersecting && hasMore && cursor !== null) {
           setIsFetchingMore(true); 
         }
@@ -60,7 +57,6 @@ const HomePage: React.FC = () => {
     },
     [isLoading, isFetchingMore, hasMore, cursor]
   );
-  // ==========================================
 
   const toastTriggered = useRef<boolean>(false);
 
@@ -70,7 +66,7 @@ const HomePage: React.FC = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 3. Centralized Cursor Fetching Logic
+  // Centralized Cursor Fetching Logic
   useEffect(() => {
     let isMounted = true;
     toastTriggered.current = false;
@@ -79,25 +75,20 @@ const HomePage: React.FC = () => {
       try {
         if (!cursor && posts.length === 0) setIsLoading(true);
         
-        // 🔥 Live Database Fetch
-        // Temporarily ignoring 'sortBy' since the backend only supports strict chronological cursor pagination currently.
-        const feedResponse = await PostsAPI.getPosts(cursor || undefined);
+        const feedResponse = await PostsAPI.getPosts(cursor ? { cursor } : undefined);
         
         if (isMounted) {
           const newPosts = feedResponse.posts || [];
           const nextCursor = feedResponse.pagination.nextCursor;
 
-          // If nextCursor is null, we reached the end of the database
           setHasMore(nextCursor !== null);
 
           if (!cursor) {
-            // First Load: Replace the array
             setPosts(newPosts);
             if (sortBy === "Recent") {
               localStorage.setItem("feedCache", JSON.stringify(newPosts.slice(0, 15)));
             }
           } else {
-            // Subsequent Loads: Append smoothly and defensively filter duplicates
             setPosts((prevPosts) => {
               const existingIds = new Set(prevPosts.map(p => p.id));
               const uniqueNewPosts = newPosts.filter(p => !existingIds.has(p.id));
@@ -105,7 +96,6 @@ const HomePage: React.FC = () => {
             });
           }
           
-          // Prepare the cursor for the next scroll fetch
           if (nextCursor !== cursor) {
              setCursor(nextCursor);
           }
@@ -113,7 +103,6 @@ const HomePage: React.FC = () => {
       } catch (error: unknown) {
         if (isMounted) {
           console.error("Error fetching live feed:", error);
-          
           if (!toastTriggered.current) {
             toast.error("Failed to load feed. Check your connection.");
             toastTriggered.current = true;
@@ -127,7 +116,6 @@ const HomePage: React.FC = () => {
       }
     };
 
-    // Trigger fetch on initial load OR when the observer requests more
     if (!cursor || isFetchingMore) {
       fetchFeed();
     }
@@ -136,11 +124,10 @@ const HomePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy, isFetchingMore]); 
 
-  // 4. Handle Sort Change: Reset the cursor safely
   const handleSortChange = (newSort: SortOption) => {
     if (sortBy === newSort) return; 
     setSortBy(newSort);
-    setCursor(null); // Reset cursor completely
+    setCursor(null); 
     setHasMore(true);
     setIsFetchingMore(false);
     setIsSortOpen(false);
@@ -148,12 +135,8 @@ const HomePage: React.FC = () => {
 
   const handlePostCreated = (newPost: Post) => {
     if (sortBy === "Recent") {
-      // Optimistic UI: If we are already on the "Recent" tab, immediately inject 
-      // the new post at the top of the array. The user sees it instantly!
       setPosts((prevPosts) => [newPost, ...prevPosts]);
     } else {
-      // If we are looking at "Top" or "Discussed", reset the feed to "Recent"
-      // to logically show the user their brand new post.
       handleSortChange("Recent"); 
     }
   };
@@ -191,7 +174,6 @@ const HomePage: React.FC = () => {
         )}
 
         <main style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0 }}>
-          
           <CreatePostEditor onPostCreated={handlePostCreated} />
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "0 8px", position: "relative" }}>
@@ -230,19 +212,16 @@ const HomePage: React.FC = () => {
                <>
                  {posts.map(post => <PostComponent key={post.id} post={post} />)}
                  
-                 {/* Background loader while fetching next cursor payload */}
                  {isFetchingMore && (
                    <div style={{ display: "flex", justifyContent: "center", padding: "1rem" }}>
                      <Loader2 size={24} className="animate-spin" style={{ color: accentColor }} />
                    </div>
                  )}
 
-                 {/* The Invisible Trigger Div for Intersection Observer */}
                  {!isFetchingMore && hasMore && (
                    <div ref={lastPostElementRef} style={{ height: "20px" }} />
                  )}
 
-                 {/* End of feed message */}
                  {!hasMore && (
                    <div style={{ textAlign: "center", color: mutedText, padding: "2rem", fontSize: "0.9rem" }}>
                      You're all caught up!
@@ -255,12 +234,12 @@ const HomePage: React.FC = () => {
                </div>
             )}
           </div>
-
         </main>
 
         {!isMobile && !isTablet && (
-          <div style={{ position: "sticky", top: "72px" }}>
+          <div style={{ position: "sticky", top: "72px", display: "flex", flexDirection: "column", gap: "16px" }}>
             <TrendingSidebar />
+            <Footer variant="sidebar" />
           </div>
         )}
 

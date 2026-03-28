@@ -48,10 +48,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    // 100% Type safe. No 'any' casting required!
     const originalRequest = error.config as InternalAxiosRequestConfig;
 
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    const isAuthRoute = 
+      originalRequest?.url?.includes('/auth/login') || 
+      originalRequest?.url?.includes('/auth/register') || 
+      originalRequest?.url?.includes('/auth/verify-email') || 
+      originalRequest?.url?.includes('/auth/refresh-token');
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthRoute) {
       if (isRefreshing) {
         return new Promise<string>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -69,7 +74,6 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // 100% Type safe request config
         const response = await api.post(
           `/auth/refresh-token`,
           {}, 
@@ -98,6 +102,7 @@ api.interceptors.response.use(
         isRefreshing = false;
       }
     }
+    
     return Promise.reject(error);
   }
 );
