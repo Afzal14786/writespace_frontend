@@ -159,6 +159,14 @@ const Header: React.FC = () => {
     });
   };
 
+  // 🔥 NEW: Coming soon handler for the Posts & Activity dropdown item
+  const handleComingSoon = () => {
+    setIsProfileMenuOpen(false);
+    toast.info("Posts & Activity feature coming in v1.1!", {
+      theme: isDark ? "dark" : "light"
+    });
+  };
+
   const handleLinkHover = (e: React.MouseEvent<HTMLElement>) => {
     e.currentTarget.style.textDecoration = "underline";
   };
@@ -350,7 +358,6 @@ const Header: React.FC = () => {
               <span>Notifications</span>
             </button>
             
-            {/* 🔥 CONDITIONAL RENDERING WRAPPER ADDED HERE */}
             {isNotificationOpen && (
               <NotificationDropdown 
                 isOpen={isNotificationOpen} 
@@ -607,21 +614,22 @@ const Header: React.FC = () => {
                   >
                     Manage
                   </h4>
-                  <Link
-                    to="/profile/posts"
-                    onClick={() => setIsProfileMenuOpen(false)}
+                  {/* 🔥 REPLACED Link with div for Coming Soon */}
+                  <div
+                    onClick={handleComingSoon}
                     style={{
                       display: "block",
                       padding: "4px 16px",
                       color: mutedText,
                       fontSize: "0.85rem",
                       textDecoration: "none",
+                      cursor: "pointer"
                     }}
                     onMouseOver={handleLinkHover}
                     onMouseOut={handleLinkLeave}
                   >
                     Posts & Activity
-                  </Link>
+                  </div>
                 </div>
 
                 <div style={{ padding: "8px 0" }}>
