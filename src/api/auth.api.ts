@@ -4,7 +4,8 @@ import type {
   RegisterPayload, 
   LoginPayload, 
   VerifyOtpPayload ,
-  ResetPasswordPayload
+  ResetPasswordPayload,
+  UpdatePasswordPayload
 } from "../types/api.types";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -41,6 +42,11 @@ export const AuthAPI = {
 
   resetPassword: async (data: ResetPasswordPayload): Promise<void> => {
     await api.post<BackendResponse<null>>("/auth/reset-password", data);
+  },
+
+  updatePassword: async (data: UpdatePasswordPayload): Promise<AuthResponse> => {
+    const response = await api.put<AuthResponse>("/auth/update-password", data);
+    return response.data;
   },
   
   googleLogin: (): void => {
