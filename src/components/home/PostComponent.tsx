@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ThumbsUp, MessageSquare, Repeat, Share2, MoreHorizontal, Link as LinkIcon, Twitter, Linkedin, Facebook, X, Trash2, Heart, UserPlus, Pencil } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ThumbsUp, MessageSquare, Repeat, Share2, MoreHorizontal, Link as LinkIcon, X, Trash2, Heart, UserPlus, Pencil } from "lucide-react";
+import { FaXTwitter, FaLinkedinIn, FaFacebookF, FaWhatsapp, FaRedditAlien } from "react-icons/fa6";
+
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
@@ -8,11 +11,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Post } from "../../types/api.types";
 import { InteractionsAPI } from "../../api/interactions.api";
 import { PostsAPI } from "../../api/posts.api";
-import { UsersAPI } from "../../api/users.api"; // 🔥 FIX: Imported UsersAPI
+import { UsersAPI } from "../../api/users.api"; 
 import CommentSection from "./CommentSection";
 import CreatePostEditor from "./CreatePostEditor"; 
 
-// CodeMirror imports for read-only snippet rendering
 import CodeMirror from '@uiw/react-codemirror';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { githubLight } from '@uiw/codemirror-theme-github';
@@ -30,7 +32,7 @@ interface ExtendedAuthor {
   fullname?: string;
   profileImageUrl?: string | null;
   headline?: string;
-  isFollowingByMe?: boolean; // 🔥 FIX: Added strictly to type
+  isFollowingByMe?: boolean;
 }
 
 interface ExtendedPost extends Omit<Post, 'author'> {
@@ -68,7 +70,6 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
     setCurrentPost(post);
   }, [post]);
 
-  // 🔥 FIX: Hydrate 'isFollowing' correctly from the backend data!
   const [isFollowing, setIsFollowing] = useState<boolean>(currentPost.author?.isFollowingByMe || false); 
   const [isLiked, setIsLiked] = useState<boolean>(currentPost.isLikedByMe || currentPost.isLiked || false);
   const [likesCount, setLikesCount] = useState<number>(currentPost.likeCount || 0); 
@@ -79,7 +80,6 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
     const nextLikeCount = currentPost.likeCount || 0;
     setIsLiked((prev) => (prev !== nextLikedState ? nextLikedState : prev));
     setLikesCount((prev) => (prev !== nextLikeCount ? nextLikeCount : prev));
-    // 🔥 Ensure follow state stays synced if parent post data changes
     setIsFollowing(currentPost.author?.isFollowingByMe || false);
   }, [currentPost.isLikedByMe, currentPost.isLiked, currentPost.likeCount, currentPost.author?.isFollowingByMe]);
 
@@ -121,14 +121,12 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔥 FIX: Actual Real API Follow Toggle
   const handleFollowToggle = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (!authUser) return toast.error("Please log in to follow users.");
 
-    // Optimistic UI update
     const previousState = isFollowing;
     setIsFollowing(!previousState);
 
@@ -138,10 +136,9 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
         toast.success(`Following ${currentPost.author.fullname || currentPost.author.username}`);
       }
     } catch (error) {
-      // Revert if API fails
       setIsFollowing(previousState);
       toast.error("Failed to update follow status.");
-      console.error(error); // Satisfy unused variable rules safely
+      console.error(error);
     }
   };
 
@@ -199,7 +196,7 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
         await navigator.clipboard.writeText(url);
         toast.success("Link copied to clipboard!");
       } else {
-        window.open(url, '_blank');
+        window.open(url, '_blank', 'noopener,noreferrer,width=600,height=400');
       }
       await InteractionsAPI.sharePost(currentPost.id, platform); 
       setSharesCount(prev => prev + 1);
@@ -250,10 +247,12 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
 
   if (isDeleted) return null;
 
-  // 🔥 FIX: LinkedIn style routing for your own posts!
   const profileLink = isOwnPost ? "/profile/me" : `/profile/${currentPost.author?.username}`;
   const shareUrl = `${window.location.origin}/post/${currentPost.id}`;
   
+  const encodedTitle = encodeURIComponent(currentPost.title || "Check out this post on Writespace");
+  const encodedUrl = encodeURIComponent(shareUrl);
+
   const snippets: ParsedCodeSnippet[] = (currentPost.codeSnippets || []).map((s: unknown) => {
     if (typeof s === 'object' && s !== null) {
       const record = s as Record<string, unknown>;
@@ -288,7 +287,6 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
                   </span>
                 </Link>
                 
-                {/* 🔥 FIX: Hide button completely if following! */}
                 {!isOwnPost && !isFollowing && (
                   <>
                     <span style={{ color: mutedText, fontSize: "0.8rem" }}>•</span>
@@ -307,7 +305,6 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
             </div>
           </div>
 
-          {/* OPTIONS DROPDOWN */}
           <div style={{ position: "relative" }} ref={optionsMenuRef}>
             <button onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)} style={{ background: "none", border: "none", color: mutedText, cursor: "pointer", padding: "4px" }}>
               <MoreHorizontal size={20} />
@@ -448,28 +445,41 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
         )}
       </div>
 
-      {/* SHARE MODAL */}
-      {isShareModalOpen && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s", padding: "16px" }}>
-          <div style={{ backgroundColor: cardBg, borderRadius: "16px", width: "100%", maxWidth: "400px", padding: "24px", boxShadow: "0 25px 50px rgba(0,0,0,0.3)", position: "relative" }}>
+      {/* 🔥 FIX: Teleport SHARE MODAL using createPortal to guarantee it sits on top of everything */}
+      {isShareModalOpen && createPortal(
+        <div onClick={() => setIsShareModalOpen(false)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s", padding: "16px" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: cardBg, borderRadius: "16px", width: "100%", maxWidth: "420px", padding: "24px", boxShadow: "0 25px 50px rgba(0,0,0,0.3)", position: "relative" }}>
             
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <h3 style={{ margin: 0, color: textColor, fontSize: "1.2rem", fontWeight: 700 }}>Share Post</h3>
               <button onClick={() => setIsShareModalOpen(false)} style={{ background: "none", border: "none", color: mutedText, cursor: "pointer", padding: "4px" }}><X size={20}/></button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "24px" }}>
-              <button onClick={() => handleShareSubmit("twitter", `https://twitter.com/intent/tweet?url=${shareUrl}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer" }}>
-                <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#1DA1F2", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}><Twitter size={24} fill="white" /></div>
-                <span style={{ fontSize: "0.8rem", color: textColor, fontWeight: 500 }}>Twitter</span>
+            {/* UPGRADED BRAND ICONS GRID */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px", justifyContent: "items-center" }}>
+              <button onClick={() => handleShareSubmit("twitter", `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer" }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: isDark ? "#ffffff" : "#000000", color: isDark ? "#000000" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", transition: "transform 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}><FaXTwitter size={24} /></div>
+                <span style={{ fontSize: "0.75rem", color: textColor, fontWeight: 500 }}>X (Twitter)</span>
               </button>
-              <button onClick={() => handleShareSubmit("linkedin", `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer" }}>
-                <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#0A66C2", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}><Linkedin size={24} fill="white" /></div>
-                <span style={{ fontSize: "0.8rem", color: textColor, fontWeight: 500 }}>LinkedIn</span>
+              
+              <button onClick={() => handleShareSubmit("linkedin", `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer" }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#0A66C2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", transition: "transform 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}><FaLinkedinIn size={24} /></div>
+                <span style={{ fontSize: "0.75rem", color: textColor, fontWeight: 500 }}>LinkedIn</span>
               </button>
-              <button onClick={() => handleShareSubmit("facebook", `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer" }}>
-                <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#1877F2", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}><Facebook size={24} fill="white" /></div>
-                <span style={{ fontSize: "0.8rem", color: textColor, fontWeight: 500 }}>Facebook</span>
+
+              <button onClick={() => handleShareSubmit("facebook", `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer" }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#1877F2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", transition: "transform 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}><FaFacebookF size={24} /></div>
+                <span style={{ fontSize: "0.75rem", color: textColor, fontWeight: 500 }}>Facebook</span>
+              </button>
+
+              <button onClick={() => handleShareSubmit("whatsapp", `https://api.whatsapp.com/send?text=${encodedTitle}%20${encodedUrl}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer" }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#25D366", color: "white", display: "flex", alignItems: "center", justifyContent: "center", transition: "transform 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}><FaWhatsapp size={24} /></div>
+                <span style={{ fontSize: "0.75rem", color: textColor, fontWeight: 500 }}>WhatsApp</span>
+              </button>
+
+              <button onClick={() => handleShareSubmit("reddit", `https://reddit.com/submit?url=${encodedUrl}&title=${encodedTitle}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer" }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#FF4500", color: "white", display: "flex", alignItems: "center", justifyContent: "center", transition: "transform 0.2s" }} onMouseOver={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}><FaRedditAlien size={24} /></div>
+                <span style={{ fontSize: "0.75rem", color: textColor, fontWeight: 500 }}>Reddit</span>
               </button>
             </div>
 
@@ -484,14 +494,16 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {selectedImage && (
-        <div onClick={() => setSelectedImage(null)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.9)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s" }}>
+      {selectedImage && createPortal(
+        <div onClick={() => setSelectedImage(null)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.9)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s" }}>
           <button onClick={() => setSelectedImage(null)} style={{ position: "absolute", top: "20px", right: "20px", background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "50%", padding: "8px", cursor: "pointer" }}><X size={24} /></button>
           <img src={selectedImage} alt="Expanded view" style={{ maxWidth: "90%", maxHeight: "90%", objectFit: "contain", borderRadius: "8px", boxShadow: "0 25px 50px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()} />
-        </div>
+        </div>,
+        document.body
       )}
 
       {isEditing && (
