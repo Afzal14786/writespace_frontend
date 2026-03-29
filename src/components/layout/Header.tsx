@@ -19,6 +19,7 @@ import { toast } from "react-toastify";
 
 import { NotificationsAPI } from "../../api/notifications.api";
 import NotificationDropdown from "./NotificationDropdown";
+import SearchComponent from "./SearchComponent";
 
 const Header: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -198,18 +199,11 @@ const Header: React.FC = () => {
           >
             <ArrowLeft size={24} />
           </button>
-          <input
-            autoFocus
-            type="text"
-            placeholder="Search Writespace..."
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              color: textColor,
-              outline: "none",
-              fontSize: "1rem",
-            }}
+          
+          <SearchComponent 
+            isMobile={true} 
+            autoFocus={true} 
+            onCloseMobile={() => setIsMobileSearchOpen(false)} 
           />
         </div>
       </header>
@@ -260,35 +254,8 @@ const Header: React.FC = () => {
             <Search size={22} color={iconColor} />
           </button>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "6px 12px",
-              width: "100%",
-              maxWidth: "280px",
-              background: isDark ? "rgba(0, 0, 0, 0.3)" : "rgba(0, 0, 0, 0.04)",
-              borderRadius: "4px",
-              border: isDark
-                ? "1px solid rgba(255, 255, 255, 0.1)"
-                : "1px solid rgba(0, 0, 0, 0.08)",
-              transition: "background-color 0.3s ease",
-            }}
-          >
-            <Search size={16} color={iconColor} />
-            <input
-              type="text"
-              placeholder="Search Writespace..."
-              style={{
-                background: "transparent",
-                border: "none",
-                color: textColor,
-                outline: "none",
-                width: "100%",
-                fontSize: "0.85rem",
-              }}
-            />
+          <div style={{ width: "100%", maxWidth: "280px" }}>
+            <SearchComponent isMobile={false} />
           </div>
         )}
       </div>
@@ -613,7 +580,6 @@ const Header: React.FC = () => {
                   >
                     Manage
                   </h4>
-                  {/* 🔥 REPLACED Link with div for Coming Soon */}
                   <div
                     onClick={handleComingSoon}
                     style={{

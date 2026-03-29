@@ -87,5 +87,10 @@ export const UsersAPI = {
   toggleFollow: async (userId: string): Promise<{ status: "followed" | "unfollowed" }> => {
     const response = await api.post(`/users/${userId}/follow`);
     return response.data.data;
+  },
+
+  searchUsers: async (query: string): Promise<User[]> => {
+    const response = await api.get(`/users/search?q=${encodeURIComponent(query)}`);
+    return response.data.data;
   }
 };
