@@ -96,7 +96,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
   return (
     <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: `1px solid ${borderColor}` }}>
       
-      {/* 🚀 The Main Input Box */}
       <div style={{ display: "flex", gap: isMobile ? "8px" : "10px", alignItems: "center" }}>
         <div style={{ width: isMobile ? "32px" : "36px", height: isMobile ? "32px" : "36px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
           {authUser?.profileImageUrl ? (
@@ -121,7 +120,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
         </div>
       </div>
 
-      {/* 🌳 The Comment Tree Engine */}
       <div style={{ marginTop: "16px" }}>
         {isLoading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "20px" }}>

@@ -43,7 +43,7 @@ const PostDetailPage: React.FC = () => {
           setPost(data);
           setIsLoading(false);
         }
-      } catch (err: unknown) { // 🔥 FIX: Strictly unknown
+      } catch (err: unknown) {
         console.error("Failed to fetch post:", err);
         if (isMounted) {
           const apiError = err as ApiErrorResponse;

@@ -281,7 +281,6 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated, edit
       {!isExpanded && !isEditMode && (
         <div style={{ backgroundColor: cardBg, borderRadius: "12px", border: `1px solid ${borderColor}`, padding: "1rem", boxShadow: isDark ? "0 4px 6px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.05)" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            {/* 🔥 NEW: Added RouterLink here so the user's avatar clicks to their profile */}
             <RouterLink to={`/profile/${authUser?.username}`} style={{ textDecoration: "none" }}>
               <div style={{ width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0, backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: "pointer" }}>
                 {authUser?.profileImageUrl ? <img src={authUser.profileImageUrl} alt="You" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={20} color={mutedText} />}
@@ -306,7 +305,6 @@ const CreatePostEditor: React.FC<CreatePostEditorProps> = ({ onPostCreated, edit
             >
               
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem", borderBottom: `1px solid ${borderColor}` }}>
-                {/* 🔥 NEW: Added RouterLink here so the user's name and avatar click to their profile in the modal */}
                 <RouterLink to={`/profile/${authUser?.username}`} style={{ textDecoration: "none", color: "inherit" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
                     <div style={{ width: "36px", height: "36px", borderRadius: "50%", backgroundColor: isDark ? "#334155" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>

@@ -33,7 +33,6 @@ const CommentThread: React.FC<CommentThreadProps> = ({ comment, postId, depth = 
   const [isLiked, setIsLiked] = useState<boolean>(comment.isLikedByMe);
   const [likeCount, setLikeCount] = useState<number>(comment.likeCount);
   
-  // 🔥 NEW: Edit State
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editContent, setEditContent] = useState<string>(comment.content);
   const [currentContent, setCurrentContent] = useState<string>(comment.content);
@@ -113,7 +112,6 @@ const CommentThread: React.FC<CommentThreadProps> = ({ comment, postId, depth = 
     }
   };
 
-  // 🔥 NEW: Handle Edit Submit
   const handleEditSubmit = async () => {
     if (!editContent.trim() || isSubmittingEdit || editContent === currentContent) {
       setIsEditing(false);
@@ -182,7 +180,6 @@ const CommentThread: React.FC<CommentThreadProps> = ({ comment, postId, depth = 
             </span>
           </div>
 
-          {/* 🔥 NEW: Inline Editor OR Static Text */}
           {isEditing ? (
             <div style={{ marginTop: "8px" }}>
               <textarea 
@@ -220,7 +217,6 @@ const CommentThread: React.FC<CommentThreadProps> = ({ comment, postId, depth = 
             </button>
           )}
 
-          {/* 🔥 NEW: Edit Button (Owner Only) */}
           {isOwner && !isEditing && (
             <>
               <button onClick={() => setIsEditing(true)} style={{ display: "flex", alignItems: "center", gap: "4px", background: "none", border: "none", cursor: "pointer", color: mutedText, padding: 0 }}>

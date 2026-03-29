@@ -159,7 +159,6 @@ const Header: React.FC = () => {
     });
   };
 
-  // 🔥 NEW: Coming soon handler for the Posts & Activity dropdown item
   const handleComingSoon = () => {
     setIsProfileMenuOpen(false);
     toast.info("Posts & Activity feature coming in v1.1!", {

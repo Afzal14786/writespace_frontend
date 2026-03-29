@@ -262,7 +262,6 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                     {notification.actor && (
                       <span 
                         style={{ fontWeight: 600, cursor: "pointer" }}
-                        // 🔥 INTERCEPT CLICK ON NAME
                         onClick={(e) => handleProfileClick(e, notification.actor?.username)}
                         onMouseOver={(e) => e.currentTarget.style.textDecoration = "underline"}
                         onMouseOut={(e) => e.currentTarget.style.textDecoration = "none"}

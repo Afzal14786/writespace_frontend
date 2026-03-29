@@ -445,7 +445,7 @@ const PostComponent: React.FC<PostComponentProps> = ({ post, onPostDeleted }) =>
         )}
       </div>
 
-      {/* 🔥 FIX: Teleport SHARE MODAL using createPortal to guarantee it sits on top of everything */}
+      
       {isShareModalOpen && createPortal(
         <div onClick={() => setIsShareModalOpen(false)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s", padding: "16px" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: cardBg, borderRadius: "16px", width: "100%", maxWidth: "420px", padding: "24px", boxShadow: "0 25px 50px rgba(0,0,0,0.3)", position: "relative" }}>

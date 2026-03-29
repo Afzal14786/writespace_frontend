@@ -49,7 +49,6 @@ const CodeZenViewer: React.FC<CodeZenViewerProps> = ({
     };
   }, [isOpen]);
 
-  // 🔥 FIX: The proper way to reset the state when closing the modal
   const handleClose = () => {
     onClose();
     // Use a tiny timeout to reset the index AFTER the closing animation starts,
@@ -193,7 +192,7 @@ const CodeZenViewer: React.FC<CodeZenViewerProps> = ({
               </span>
             </div>
             <button
-              onClick={handleClose} // 🔥 FIX: Using the new handleClose function
+              onClick={handleClose}
               style={{
                 background: "none",
                 border: "none",

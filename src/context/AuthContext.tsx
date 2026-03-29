@@ -62,7 +62,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loginState = useCallback((newUser: User, newAccessToken: string) => {
     localStorage.setItem("accessToken", newAccessToken);
     localStorage.setItem("userData", JSON.stringify(newUser));
-    // Notice: refreshToken is no longer saved to localStorage
     setAccessToken(newAccessToken);
     setUser(newUser);
   }, []);

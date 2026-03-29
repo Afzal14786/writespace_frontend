@@ -71,7 +71,6 @@ const ProfileContent: React.FC<ProfileContentProps> = ({ posts, profileUser, isF
               };
 
               return (
-                 /* 🔥 FIX: Wrap PostComponent to guarantee it respects bounds */
                  <div key={post.id} style={{ width: "100%", overflow: "hidden" }}>
                     <PostComponent post={hydratedPost} />
                  </div>

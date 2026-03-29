@@ -10,7 +10,6 @@ const Footer: React.FC<FooterProps> = ({ variant = 'app' }) => {
   const isDark = theme === "dark";
   const currentYear = new Date().getFullYear();
 
-  // 🔥 NEW: Sidebar variant designed specifically for the HomePage right column
   if (variant === 'sidebar') {
     return (
       <div className="px-2 pb-6">
