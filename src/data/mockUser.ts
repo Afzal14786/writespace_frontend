@@ -7,5 +7,5 @@ export const MOCK_USER: User = {
   email: "afzal@writespace.com",
   bio: "Full Stack Developer | AI Enthusiast",
   headline: "Aspiring AI Engineer | MERN Stack Specialist",
-  profileImage: "https://api.dicebear.com/7.x/avataaars/svg?seed=Afzal"
+  profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Afzal",
 };
